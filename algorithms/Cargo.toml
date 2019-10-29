@@ -1,0 +1,66 @@
+[package]
+name = "russh-algorithms"
+version = "0.1.0"
+authors = ["aticu <15schnic@gmail.com>"]
+license = "MIT/Apache-2.0"
+keywords = ["ssh", "network", "russh", "crypto"]
+edition = "2018"
+
+[features]
+default = [
+    # Key exchange
+    "curve25519-sha256",
+
+    # Host key
+    "ssh-ed25519",
+
+    # Encryption
+    "aes128-ctr",
+    "aes192-ctr",
+    "aes256-ctr",
+
+    # MAC
+    "hmac-sha1",
+    "hmac-sha2-256",
+    "hmac-sha2-512",
+]
+
+
+# Key exchange
+curve25519-sha256 = ["x25519-dalek", "sha2", "rand6", "num-bigint", "rand"]
+
+# Host key
+ssh-ed25519 = ["ed25519-dalek"]
+
+# Encryption
+aes128-ctr = ["aes-ctr", "static_assertions"]
+aes192-ctr = ["aes-ctr", "static_assertions"]
+aes256-ctr = ["aes-ctr", "static_assertions"]
+
+# MAC
+hmac-sha1 = ["hmac", "sha-1", "secstr"]
+hmac-sha2-256 = ["hmac", "sha2", "secstr"]
+hmac-sha2-512 = ["hmac", "sha2", "secstr"]
+
+[dependencies]
+# General
+russh-common = { path = "../common" }
+sha2 = { version = "0.8", optional = true }
+num-bigint = { version = "0.2", optional = true }
+rand = { version = "0.7", optional = true }
+secstr = { version = "0.3", optional = true }
+static_assertions = { version = "1.0", optional = true }
+sha-1 = { version = "0.8", optional = true }
+
+# Key exchange
+x25519-dalek = { version = "0.5", optional = true }
+
+# Host key
+ed25519-dalek = { version = "1.0.0-pre.2", optional = true }
+rand6 = { package = "rand", version = "0.6.4", optional = true }
+
+# Encryption
+aes-ctr = { version = "0.3", optional = true }
+
+# MAC
+hmac = { version = "0.7", optional = true }

@@ -1,0 +1,27 @@
+[package]
+name = "russh-transport"
+version = "0.1.0"
+authors = ["aticu <15schnic@gmail.com>"]
+license = "MIT/Apache-2.0"
+keywords = ["ssh", "transport", "network", "russh"]
+edition = "2018"
+
+[features]
+default = ["default-algorithms"]
+
+default-algorithms = ["russh-algorithms"]
+
+[dependencies]
+russh-common = { path = "../common" }
+russh-algorithms = { path = "../algorithms", optional = true }
+nom = "5.0"
+num-bigint = "0.2"
+tokio = "0.2.0-alpha.1"
+rand = "0.7"
+rand_distr = "0.2"
+err-derive = "0.1"
+
+[dev-dependencies]
+matches = "0.1"
+futures-preview = { version = "=0.3.0-alpha.17", features = ["async-await", "nightly"] }
+rand_chacha = "0.2.1"

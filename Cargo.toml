@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "algorithms",
+    "common",
+    "transport",
+]
