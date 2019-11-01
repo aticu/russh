@@ -13,12 +13,12 @@ use std::{borrow::Cow, error::Error};
 pub struct None {}
 
 impl None {
-    /// Creates a new "none" compression algorithm.
+    /// Creates a new `none` compression algorithm.
     pub fn new() -> None {
         None {}
     }
 
-    /// Creates a new boxed "none" compression algorithm.
+    /// Creates a new boxed `none` compression algorithm.
     pub fn boxed() -> Box<None> {
         Box::new(None::new())
     }

@@ -34,6 +34,7 @@ pub use output_handler::OutputStream;
 pub use russh_common::ConnectionRole;
 pub use version::VersionInformation;
 
+mod algorithms;
 mod input_handler;
 mod output_handler;
 mod parser;
@@ -44,7 +45,6 @@ mod test_helpers;
 mod version;
 mod writer;
 
-pub mod algorithms;
 pub mod constants;
 pub mod errors;
 
@@ -148,6 +148,7 @@ impl<Input: InputStream + fmt::Debug, Output: OutputStream + fmt::Debug> fmt::De
 
 impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     // TODO: change most methods to take &mut self instead of self
+    // TODO: allow changing of the software version sent
     /// Creates a new builder with sensible default values.
     pub fn new(input: Input, output: Output, connection_role: ConnectionRole) -> Self {
         // TODO: handle languages
@@ -388,7 +389,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     /// Loads a host key for the given algorithm.
     ///
     /// # Panics
-    /// May panic if called successfully more than once for the same algorithm.
+    /// May panic if called again for the same algorithm after a successful call.
     pub fn load_host_key(mut self, algorithm: &str, key: &[u8]) -> Result<Self, LoadHostKeyError> {
         self.available_algorithms.load_host_key(algorithm, key)?;
 
@@ -417,11 +418,6 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     }
 
     /// Sets the random number generator.
-    ///
-    /// # Panics
-    /// This method will panic if `padding_length_distribution` was called before.
-    /// This is necessary, because the distribution may be dependent on the random
-    /// number generator used. To fix this, just call `rng` first.
     pub fn rng<NewRng: RngCore + CryptoRng + 'static>(self, rng: NewRng) -> Builder<Input, Output> {
         Builder {
             rng: Some(Box::new(rng)),
@@ -429,7 +425,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         }
     }
 
-    /// Sets if "none" MAC and encryption algorithms should be allowed.
+    /// Sets if `none` MAC and encryption algorithms should be allowed.
     ///
     /// They are disabled by default and it is strongly encouraged to keep them disabled.
     pub fn allow_none_algorithms(self, allow: bool) -> Self {

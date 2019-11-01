@@ -18,12 +18,12 @@ pub use self::aes_ctr::*;
 pub struct None {}
 
 impl None {
-    /// Creates a new "none" encryption algorithm.
+    /// Creates a new `none` encryption algorithm.
     pub fn new() -> None {
         None {}
     }
 
-    /// Creates a new boxed "none" encryption algorithm.
+    /// Creates a new boxed `none` encryption algorithm.
     pub fn boxed() -> Box<None> {
         Box::new(None::new())
     }

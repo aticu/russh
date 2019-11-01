@@ -24,7 +24,9 @@ const SIGNATURE_PREFIX: &[u8] = b"\x00\x00\x00\x0bssh-ed25519\x00\x00\x00\x40";
 /// ```
 const PUBLIC_KEY_PREFIX: &[u8] = b"\x00\x00\x00\x0bssh-ed25519\x00\x00\x00\x20";
 
-/// Implements the "ssh-ed25519" host key algorithm.
+/// Implements the `ssh-ed25519` host key algorithm.
+///
+/// The existance of this struct is controlled by the `ssh-ed25519` feature.
 #[derive(Debug)]
 pub struct Ed25519 {
     /// The keypair used to sign messages.
@@ -32,12 +34,12 @@ pub struct Ed25519 {
 }
 
 impl Ed25519 {
-    /// Creates a new "ssh-ed25519" host key algorithm.
+    /// Creates a new `ssh-ed25519` host key algorithm.
     pub fn new() -> Ed25519 {
         Ed25519 { keypair: None }
     }
 
-    /// Creates a new boxed "ssh-ed25519" host key algorithm.
+    /// Creates a new boxed `ssh-ed25519` host key algorithm.
     pub fn boxed() -> Box<Ed25519> {
         Box::new(Ed25519::new())
     }

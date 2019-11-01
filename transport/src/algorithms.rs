@@ -13,9 +13,8 @@ use std::{borrow::Cow, fmt};
 
 use crate::errors::{InvalidAlgorithmError, LoadHostKeyError};
 
+pub(crate) mod builtin;
 pub(crate) mod helpers;
-
-pub mod builtin;
 
 // TODO: rethink categories (don't include direction in category)
 // then make a category(&self) function here

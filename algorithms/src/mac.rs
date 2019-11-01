@@ -25,12 +25,12 @@ pub use self::hmac_sha::*;
 pub struct None {}
 
 impl None {
-    /// Creates a new "none" MAC algorithm.
+    /// Creates a new `none` MAC algorithm.
     pub fn new() -> None {
         None {}
     }
 
-    /// Creates a new boxed "none" MAC algorithm.
+    /// Creates a new boxed `none` MAC algorithm.
     pub fn boxed() -> Box<None> {
         Box::new(None::new())
     }

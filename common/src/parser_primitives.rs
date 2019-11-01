@@ -44,7 +44,7 @@ pub type ParseResult<'a, T> = Result<ParsedValue<'a, T>, ParseError>;
 ///
 /// A byte represents an arbitrary 8-bit value (octet).  Fixed length
 /// data is sometimes represented as an array of bytes, written
-/// byte[n], where n is the number of bytes in the array.
+/// byte\[n\], where n is the number of bytes in the array.
 ///
 /// See [RFC 4251 page 8](https://tools.ietf.org/html/rfc4251#page-8).
 pub fn parse_byte(input: &[u8]) -> ParseResult<u8> {
@@ -150,7 +150,7 @@ pub fn parse_mpint(input: &[u8]) -> ParseResult<BigInt> {
 /// elements contained are names and MUST be in US-ASCII.  Context may
 /// impose additional restrictions on the names.  For example, the
 /// names in a name-list may have to be a list of valid algorithm
-/// identifiers (see Section 6 below), or a list of [RFC3066] language
+/// identifiers (see Section 6 below), or a list of RFC3066 language
 /// tags.  The order of the names in a name-list may or may not be
 /// significant.  Again, this depends on the context in which the list
 /// is used.  Terminating null characters MUST NOT be used, neither

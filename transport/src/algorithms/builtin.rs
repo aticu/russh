@@ -8,31 +8,31 @@ use crate::algorithms::{
 
 /// Returns a list of all builtin key exchange algorithms.
 #[cfg(feature = "default-algorithms")]
-pub fn key_exchange_algorithms() -> Vec<Box<dyn KeyExchangeAlgorithm>> {
+pub(crate) fn key_exchange_algorithms() -> Vec<Box<dyn KeyExchangeAlgorithm>> {
     russh_algorithms::key_exchange::algorithms()
 }
 
 /// Returns a list of all builtin host key algorithms.
 #[cfg(feature = "default-algorithms")]
-pub fn host_key_algorithms() -> Vec<Box<dyn HostKeyAlgorithm>> {
+pub(crate) fn host_key_algorithms() -> Vec<Box<dyn HostKeyAlgorithm>> {
     russh_algorithms::host_key::algorithms()
 }
 
 /// Returns a list of all builtin encryption algorithms.
 #[cfg(feature = "default-algorithms")]
-pub fn encryption_algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
+pub(crate) fn encryption_algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
     russh_algorithms::encryption::algorithms()
 }
 
 /// Returns a list of all builtin MAC algorithms.
 #[cfg(feature = "default-algorithms")]
-pub fn mac_algorithms() -> Vec<Box<dyn MacAlgorithm>> {
+pub(crate) fn mac_algorithms() -> Vec<Box<dyn MacAlgorithm>> {
     russh_algorithms::mac::algorithms()
 }
 
 /// Returns a list of all builtin compression algorithms.
 #[cfg(feature = "default-algorithms")]
-pub fn compression_algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
+pub(crate) fn compression_algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
     russh_algorithms::compression::algorithms()
 }
 
@@ -40,30 +40,30 @@ pub fn compression_algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
 
 /// Returns a list of all builtin key exchange algorithms.
 #[cfg(not(feature = "default-algorithms"))]
-pub fn key_exchange_algorithms() -> Vec<Box<dyn KeyExchangeAlgorithm>> {
+pub(crate) fn key_exchange_algorithms() -> Vec<Box<dyn KeyExchangeAlgorithm>> {
     vec![]
 }
 
 /// Returns a list of all builtin host key algorithms.
 #[cfg(not(feature = "default-algorithms"))]
-pub fn host_key_algorithms() -> Vec<Box<dyn HostKeyAlgorithm>> {
+pub(crate) fn host_key_algorithms() -> Vec<Box<dyn HostKeyAlgorithm>> {
     vec![]
 }
 
 /// Returns a list of all builtin encryption algorithms.
 #[cfg(not(feature = "default-algorithms"))]
-pub fn encryption_algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
+pub(crate) fn encryption_algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
     vec![]
 }
 
 /// Returns a list of all builtin MAC algorithms.
 #[cfg(not(feature = "default-algorithms"))]
-pub fn mac_algorithms() -> Vec<Box<dyn MacAlgorithm>> {
+pub(crate) fn mac_algorithms() -> Vec<Box<dyn MacAlgorithm>> {
     vec![]
 }
 
 /// Returns a list of all builtin compression algorithms.
 #[cfg(not(feature = "default-algorithms"))]
-pub fn compression_algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
+pub(crate) fn compression_algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
     vec![]
 }

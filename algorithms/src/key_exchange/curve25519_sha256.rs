@@ -16,7 +16,9 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 use x25519_dalek::{EphemeralSecret, PublicKey};
 
-/// The "curve25519-sha256" key exchange algorithm.
+/// Implements the `curve25519-sha256` key exchange algorithm.
+///
+/// The existance of this struct is controlled by the `curve25519-sha256` feature.
 pub struct Curve25519Sha256 {
     /// The secret key used for the key exchange.
     secret: Option<EphemeralSecret>,
@@ -25,7 +27,7 @@ pub struct Curve25519Sha256 {
 }
 
 impl Curve25519Sha256 {
-    /// Creates a new "curve25519-sha256" key exchange algorithm.
+    /// Creates a new `curve25519-sha256` key exchange algorithm.
     pub fn new() -> Curve25519Sha256 {
         Curve25519Sha256 {
             secret: None,
@@ -33,7 +35,7 @@ impl Curve25519Sha256 {
         }
     }
 
-    /// Creates a new boxed "curve25519-sha256" key exchange algorithm.
+    /// Creates a new boxed `curve25519-sha256` key exchange algorithm.
     pub fn boxed() -> Box<Curve25519Sha256> {
         Box::new(Curve25519Sha256::new())
     }

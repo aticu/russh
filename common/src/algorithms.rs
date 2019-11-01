@@ -47,9 +47,6 @@ pub enum KeyExchangeResponse {
         /// server.
         host_key: Option<Vec<u8>>,
         /// The shared secret that was generated during the key exchange.
-        ///
-        /// This should be encoded as an mpint. How such an encoding is obtained depends on the
-        /// algorithm.
         shared_secret: BigInt,
         /// The exchange hash that was generated during the key exchange.
         exchange_hash: Vec<u8>,
@@ -70,7 +67,7 @@ pub trait KeyExchangeAlgorithm: Algorithm {
     /// Should be implemented like this:
     ///
     /// ```ignore
-    /// as_basic_algorithm(&self) -> &dyn Algorithm { self }
+    /// fn as_basic_algorithm(&self) -> &dyn Algorithm { self }
     /// ```
     fn as_basic_algorithm(&self) -> &dyn Algorithm;
 
@@ -155,7 +152,7 @@ pub trait HostKeyAlgorithm: Algorithm {
     /// Should be implemented like this:
     ///
     /// ```ignore
-    /// as_basic_algorithm(&self) -> &dyn Algorithm { self }
+    /// fn as_basic_algorithm(&self) -> &dyn Algorithm { self }
     /// ```
     fn as_basic_algorithm(&self) -> &dyn Algorithm;
 
@@ -247,7 +244,7 @@ pub trait EncryptionAlgorithm: Algorithm {
     /// Should be implemented like this:
     ///
     /// ```ignore
-    /// as_basic_algorithm(&self) -> &dyn Algorithm { self }
+    /// fn as_basic_algorithm(&self) -> &dyn Algorithm { self }
     /// ```
     fn as_basic_algorithm(&self) -> &dyn Algorithm;
 
@@ -315,7 +312,7 @@ pub trait MacAlgorithm: Algorithm {
     /// Should be implemented like this:
     ///
     /// ```ignore
-    /// as_basic_algorithm(&self) -> &dyn Algorithm { self }
+    /// fn as_basic_algorithm(&self) -> &dyn Algorithm { self }
     /// ```
     fn as_basic_algorithm(&self) -> &dyn Algorithm;
 
@@ -388,7 +385,7 @@ pub trait CompressionAlgorithm: Algorithm {
     /// Should be implemented like this:
     ///
     /// ```ignore
-    /// as_basic_algorithm(&self) -> &dyn Algorithm { self }
+    /// fn as_basic_algorithm(&self) -> &dyn Algorithm { self }
     /// ```
     fn as_basic_algorithm(&self) -> &dyn Algorithm;
 

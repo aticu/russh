@@ -15,9 +15,13 @@ macro_rules! impl_aes_ctr {
         // cleared from memory, once they are unloaded.
         static_assertions::assert_not_impl_all!($alg: Drop);
 
-        #[doc = "Implements the \""]
+        #[doc = "Implements the `"]
         #[doc = $name_str]
-        #[doc = "\" encryption algorithm."]
+        #[doc = "` encryption algorithm."]
+        #[doc = ""]
+        #[doc = "The existance of this struct is controlled by the `"]
+        #[doc = $name_str]
+        #[doc = "` feature."]
         #[derive(Debug)]
         pub struct $name {
             /// Contains the algorithm implementation and the keys.
@@ -27,16 +31,16 @@ macro_rules! impl_aes_ctr {
         }
 
         impl $name {
-            #[doc = "Creates a new \""]
+            #[doc = "Creates a new `"]
             #[doc = $name_str]
-            #[doc = "\" encryption algorithm."]
+            #[doc = "` encryption algorithm."]
             pub fn new() -> Self {
                 $name { algorithm: None }
             }
 
-            #[doc = "Creates a new boxed \""]
+            #[doc = "Creates a new boxed `"]
             #[doc = $name_str]
-            #[doc = "\" encryption algorithm."]
+            #[doc = "` encryption algorithm."]
             pub fn boxed() -> Box<Self> {
                 Box::new(Self::new())
             }

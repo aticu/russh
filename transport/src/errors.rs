@@ -1,4 +1,4 @@
-//! Defines all the errors that can occur.
+//! Defines all the errors that can occur in the transport layer.
 
 pub use russh_common::{algorithms::KeyExchangeAlgorithmError, parser_primitives::ParseError};
 

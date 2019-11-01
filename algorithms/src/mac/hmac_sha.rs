@@ -13,9 +13,13 @@ use secstr::SecStr;
 
 macro_rules! impl_hmac_sha {
     ($name_str:expr, $name:ident, $alg:ty, $key_size:expr) => {
-        #[doc = "Implements the \""]
+        #[doc = "Implements the `"]
         #[doc = $name_str]
-        #[doc = "\" MAC algorithm."]
+        #[doc = "` MAC algorithm."]
+        #[doc = ""]
+        #[doc = "The existance of this struct is controlled by the `"]
+        #[doc = $name_str]
+        #[doc = "` feature."]
         #[derive(Debug)]
         pub struct $name {
             /// The key to use for the MAC computations.
@@ -23,16 +27,16 @@ macro_rules! impl_hmac_sha {
         }
 
         impl $name {
-            #[doc = "Creates a new \""]
+            #[doc = "Creates a new `"]
             #[doc = $name_str]
-            #[doc = "\" MAC algorithm."]
+            #[doc = "` MAC algorithm."]
             pub fn new() -> $name {
                 $name { key: None }
             }
 
-            #[doc = "Creates a new boxed \""]
+            #[doc = "Creates a new boxed `"]
             #[doc = $name_str]
-            #[doc = "\" MAC algorithm."]
+            #[doc = "` MAC algorithm."]
             pub fn boxed() -> Box<$name> {
                 Box::new($name::new())
             }
