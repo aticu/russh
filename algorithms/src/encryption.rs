@@ -1,6 +1,6 @@
 //! Provides the encryption algorithms used by the SSH transport layer.
 
-use russh_common::algorithms::{Algorithm, EncryptionAlgorithm};
+use russh_common::algorithms::{Algorithm, AlgorithmCategory, EncryptionAlgorithm};
 
 #[cfg(any(feature = "aes128-ctr", feature = "aes192-ctr", feature = "aes256-ctr"))]
 #[doc(hidden)]
@@ -32,6 +32,10 @@ impl None {
 impl Algorithm for None {
     fn name(&self) -> &'static str {
         "none"
+    }
+
+    fn category(&self) -> AlgorithmCategory {
+        AlgorithmCategory::Encryption
     }
 }
 

@@ -1,10 +1,13 @@
 //! Defines all the errors that can occur in the transport layer.
 
-pub use russh_common::{algorithms::KeyExchangeAlgorithmError, parser_primitives::ParseError};
+pub use russh_common::{
+    algorithms::{AlgorithmCategory, AlgorithmRole, KeyExchangeAlgorithmError},
+    parser_primitives::ParseError,
+};
 
 use std::{error::Error, io};
 
-use crate::{algorithms::AlgorithmCategory, version::VersionInformation};
+use crate::version::VersionInformation;
 
 /// There was an error during communication.
 #[derive(Debug, Error)]
@@ -65,9 +68,9 @@ pub enum KeyExchangeProcedureError {
     /// There was an error while sending or receiving a packet during key exchange.
     #[error(display = "a communication error occurred: {}", _0)]
     Communication(CommunicationError),
-    /// No algorithm was found for the given algorithm category.
-    #[error(display = "{:?}: no suitable algorithm found", _0)]
-    NoAlgorithmFound(AlgorithmCategory),
+    /// No algorithm was found for the given algorithm role.
+    #[error(display = "{}: no suitable algorithm found", _0)]
+    NoAlgorithmFound(AlgorithmRole),
     /// There was an error while performing the key exchange algorithm.
     #[error(display = "{}", _0)]
     KeyExchangeAlgorithmError(KeyExchangeAlgorithmError),
@@ -99,11 +102,11 @@ pub enum BuildError {
     #[error(display = "invalid algorithm used: {}", _0)]
     InvalidAlgorithm(InvalidAlgorithmError),
     /// The given algorithm category had no algorithms in it.
-    #[error(display = "{:?}: no algorithm found", _0)]
-    EmptyAlgorithmCategory(AlgorithmCategory),
+    #[error(display = "{}: no algorithm found", _0)]
+    EmptyAlgorithmRole(AlgorithmRole),
     /// The given algorithm category requires a "none" algorithm, but none was given.
-    #[error(display = "{:?}: no  \"none\" algorithm found", _0)]
-    RequiredNoneAlgorithmMissing(AlgorithmCategory),
+    #[error(display = "{}: no  \"none\" algorithm found", _0)]
+    RequiredNoneAlgorithmMissing(AlgorithmRole),
     /// There was an error during the initialization of the connection.
     #[error(display = "error initializing the connection: {}", _0)]
     Initialization(InitializationError),
@@ -155,6 +158,8 @@ pub enum InvalidAlgorithmError {
     InvalidName {
         /// The name of the invalid algorithm.
         algorithm_name: String,
+        /// The category for which the algorithm is invalid.
+        algorithm_category: AlgorithmCategory,
         /// The reason the name is invalid.
         name_error: InvalidNameError,
     },

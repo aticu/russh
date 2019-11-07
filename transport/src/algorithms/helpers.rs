@@ -69,9 +69,9 @@ fn valid_algorithm_name(name: &str) -> Result<(), InvalidNameError> {
 
 /// Attempts to validate the validity of an algorithm implementation.
 pub(crate) fn is_valid_algorithm(algorithm: &dyn Algorithm) -> Result<(), InvalidAlgorithmError> {
-    // TODO: consider returning an algorithm here instead of the name
     valid_algorithm_name(algorithm.name()).map_err(|err| InvalidAlgorithmError::InvalidName {
         algorithm_name: algorithm.name().into(),
+        algorithm_category: algorithm.category(),
         name_error: err,
     })?;
 

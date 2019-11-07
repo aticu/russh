@@ -2,7 +2,7 @@
 
 use rand::Rng;
 use russh_common::{
-    algorithms::{HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeData},
+    algorithms::{AlgorithmCategory, AlgorithmDirection, AlgorithmRole, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeData},
     message_numbers::{SSH_MSG_NEWKEYS, SSH_MSG_SERVICE_ACCEPT, SSH_MSG_SERVICE_REQUEST},
     message_type::MessageType,
     parser_primitives::{parse_byte, parse_string},
@@ -12,7 +12,7 @@ use russh_common::{
 use std::borrow::Cow;
 
 use crate::{
-    algorithms::{AlgorithmCategory, AlgorithmList, AvailableAlgorithms, ChosenAlgorithms},
+    algorithms::{AlgorithmList, AvailableAlgorithms, ChosenAlgorithms},
     errors::{
         CommunicationError, InitializationError, KeyExchangeProcedureError, ServiceRequestError,
     },
@@ -346,37 +346,37 @@ fn negotiate_algorithms<'a>(
         &own_list.encryption_client_to_server,
         &other_list.encryption_client_to_server,
         own_role,
-        AlgorithmCategory::EncryptionClientToServer,
+        AlgorithmRole(AlgorithmCategory::Encryption, Some(AlgorithmDirection::ClientToServer)),
     )?;
     let encryption_server_to_client = negotiate_basic_algorithm(
         &own_list.encryption_server_to_client,
         &other_list.encryption_server_to_client,
         own_role,
-        AlgorithmCategory::EncryptionServerToClient,
+        AlgorithmRole(AlgorithmCategory::Encryption, Some(AlgorithmDirection::ServerToClient)),
     )?;
     let mac_client_to_server = negotiate_basic_algorithm(
         &own_list.mac_client_to_server,
         &other_list.mac_client_to_server,
         own_role,
-        AlgorithmCategory::MacClientToServer,
+        AlgorithmRole(AlgorithmCategory::Mac, Some(AlgorithmDirection::ClientToServer)),
     )?;
     let mac_server_to_client = negotiate_basic_algorithm(
         &own_list.mac_server_to_client,
         &other_list.mac_server_to_client,
         own_role,
-        AlgorithmCategory::MacServerToClient,
+        AlgorithmRole(AlgorithmCategory::Mac, Some(AlgorithmDirection::ServerToClient)),
     )?;
     let compression_client_to_server = negotiate_basic_algorithm(
         &own_list.compression_client_to_server,
         &other_list.compression_client_to_server,
         own_role,
-        AlgorithmCategory::CompressionClientToServer,
+        AlgorithmRole(AlgorithmCategory::Compression, Some(AlgorithmDirection::ClientToServer)),
     )?;
     let compression_server_to_client = negotiate_basic_algorithm(
         &own_list.compression_server_to_client,
         &other_list.compression_server_to_client,
         own_role,
-        AlgorithmCategory::CompressionServerToClient,
+        AlgorithmRole(AlgorithmCategory::Compression, Some(AlgorithmDirection::ServerToClient)),
     )?;
 
     let chosen_algorithms = ChosenAlgorithms {
@@ -439,7 +439,7 @@ fn negotiate_host_key_algorithm(
             unreachable!()
         })
         .ok_or(KeyExchangeProcedureError::NoAlgorithmFound(
-            AlgorithmCategory::HostKey,
+            AlgorithmRole(AlgorithmCategory::HostKey, None),
         ))
 }
 
@@ -448,7 +448,7 @@ fn negotiate_basic_algorithm(
     own_list: &[Cow<'static, str>],
     other_list: &[Cow<str>],
     own_role: &ConnectionRole,
-    category: AlgorithmCategory,
+    role: AlgorithmRole,
 ) -> Result<&'static str, KeyExchangeProcedureError> {
     let (client_list, server_list) = match own_role {
         ConnectionRole::Client => (own_list, other_list),
@@ -470,5 +470,5 @@ fn negotiate_basic_algorithm(
 
             unreachable!()
         })
-        .ok_or(KeyExchangeProcedureError::NoAlgorithmFound(category))
+        .ok_or(KeyExchangeProcedureError::NoAlgorithmFound(role))
 }

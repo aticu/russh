@@ -3,7 +3,7 @@
 use nom::bytes::complete::{tag, take};
 use num_bigint::BigInt;
 use russh_common::{
-    algorithms::{HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeData, KeyExchangeResponse},
+    algorithms::{AlgorithmCategory, AlgorithmRole, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeData, KeyExchangeResponse},
     message_numbers::SSH_MSG_KEXINIT,
     message_type::MessageType,
     parser_primitives::{parse_boolean, parse_name_list, parse_uint32},
@@ -16,7 +16,7 @@ use std::{
 };
 
 use crate::{
-    algorithms::{AlgorithmCategory, AlgorithmList, AvailableAlgorithms},
+    algorithms::{AlgorithmList, AvailableAlgorithms},
     errors::{CommunicationError, KeyExchangeProcedureError, ParseError},
     input_handler::{InputHandler, InputStream},
     output_handler::{OutputHandler, OutputStream},
@@ -228,7 +228,7 @@ pub(in crate::protocol) fn negotiate_algorithm(
 
     if own_kex_list.len() == 0 || other_kex_list.len() == 0 {
         return Err(KeyExchangeProcedureError::NoAlgorithmFound(
-            AlgorithmCategory::KeyExchange,
+            AlgorithmRole(AlgorithmCategory::KeyExchange, None),
         ));
     }
 
@@ -301,7 +301,7 @@ pub(in crate::protocol) fn negotiate_algorithm(
     }
 
     Err(KeyExchangeProcedureError::NoAlgorithmFound(
-        AlgorithmCategory::KeyExchange,
+        AlgorithmRole(AlgorithmCategory::KeyExchange, None),
     ))
 }
 

@@ -4,8 +4,8 @@ use num_bigint::BigInt;
 use rand::RngCore;
 use russh_common::{
     algorithms::{
-        Algorithm, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeAlgorithmError,
-        KeyExchangeData, KeyExchangeResponse,
+        Algorithm, AlgorithmCategory, HostKeyAlgorithm, KeyExchangeAlgorithm,
+        KeyExchangeAlgorithmError, KeyExchangeData, KeyExchangeResponse,
     },
     message_numbers::{SSH_MSG_KEX_ECDH_INIT, SSH_MSG_KEX_ECDH_REPLY},
     parser_primitives::{parse_byte, parse_string, ParseError},
@@ -44,6 +44,10 @@ impl Curve25519Sha256 {
 impl Algorithm for Curve25519Sha256 {
     fn name(&self) -> &'static str {
         "curve25519-sha256"
+    }
+
+    fn category(&self) -> AlgorithmCategory {
+        AlgorithmCategory::KeyExchange
     }
 }
 

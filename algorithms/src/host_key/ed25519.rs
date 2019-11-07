@@ -1,7 +1,7 @@
 //! Provides an implementation of the "ssh-ed25519" host key algorithm.
 
 use ed25519_dalek::{Keypair, PublicKey, Signature, SignatureError, SIGNATURE_LENGTH};
-use russh_common::algorithms::{Algorithm, HostKeyAlgorithm};
+use russh_common::algorithms::{Algorithm, AlgorithmCategory, HostKeyAlgorithm};
 use std::{error::Error, fmt};
 
 /// The prefix used for a signature.
@@ -60,6 +60,10 @@ impl Error for Ed25519SignatureError {}
 impl Algorithm for Ed25519 {
     fn name(&self) -> &'static str {
         "ssh-ed25519"
+    }
+
+    fn category(&self) -> AlgorithmCategory {
+        AlgorithmCategory::HostKey
     }
 }
 

@@ -8,7 +8,7 @@ use hmac::{
     digest::FixedOutput,
     Hmac, Mac,
 };
-use russh_common::algorithms::{Algorithm, MacAlgorithm};
+use russh_common::algorithms::{Algorithm, AlgorithmCategory, MacAlgorithm};
 use secstr::SecStr;
 
 macro_rules! impl_hmac_sha {
@@ -62,6 +62,10 @@ macro_rules! impl_hmac_sha {
         impl Algorithm for $name {
             fn name(&self) -> &'static str {
                 $name_str
+            }
+
+            fn category(&self) -> AlgorithmCategory {
+                AlgorithmCategory::Mac
             }
         }
 

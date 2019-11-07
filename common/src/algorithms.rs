@@ -2,7 +2,7 @@
 
 use num_bigint::BigInt;
 use rand::RngCore;
-use std::{borrow::Cow, error::Error};
+use std::{borrow::Cow, error::Error, fmt};
 
 use crate::ConnectionRole;
 
@@ -16,6 +16,50 @@ pub trait Algorithm {
     /// The value returned by this function must always be the same, otherwise the
     /// SSH transport layer will not work as expected.
     fn name(&self) -> &'static str;
+
+    /// Returns the category of the algorithm.
+    fn category(&self) -> AlgorithmCategory;
+}
+
+/// Describes the possible categories for algorithms.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum AlgorithmCategory {
+    /// A key exchange algorithm.
+    KeyExchange,
+    /// A host key algorithm.
+    HostKey,
+    /// An encryption algorithm.
+    Encryption,
+    /// A MAC algorithm.
+    Mac,
+    /// A compression algorithm.
+    Compression,
+}
+
+/// Describes the direction of an algorithm.
+///
+/// This is used to determine which party is the sender and which party is the receiver.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum AlgorithmDirection {
+    /// The algorithm is used for client to server communication.
+    ClientToServer,
+    /// The algorithm is used for server to client communication.
+    ServerToClient,
+}
+
+/// Describes an algorithm role in a connection.
+///
+/// This is the combination of an algorithm category with its direction, if it has one.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct AlgorithmRole(pub AlgorithmCategory, pub Option<AlgorithmDirection>);
+
+impl fmt::Display for AlgorithmRole {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.1 {
+            Some(direction) => write!(f, "{:?} {:?}", self.0, direction),
+            None => write!(f, "{:?}", self.0),
+        }
+    }
 }
 
 /// The data needed to perform a key exchange.

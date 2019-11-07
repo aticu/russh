@@ -1,7 +1,7 @@
 //! Provides implementations of the "aesXXX-ctr" encryption algorithms.
 
 use aes_ctr::stream_cipher::{generic_array::GenericArray, NewStreamCipher, StreamCipher};
-use russh_common::algorithms::{Algorithm, EncryptionAlgorithm};
+use russh_common::algorithms::{Algorithm, AlgorithmCategory, EncryptionAlgorithm};
 use std::mem;
 
 macro_rules! impl_aes_ctr {
@@ -49,6 +49,10 @@ macro_rules! impl_aes_ctr {
         impl Algorithm for $name {
             fn name(&self) -> &'static str {
                 $name_str
+            }
+
+            fn category(&self) -> AlgorithmCategory {
+                AlgorithmCategory::Encryption
             }
         }
 

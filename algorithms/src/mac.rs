@@ -1,6 +1,6 @@
 //! Provides the MAC algorithms used by the SSH transport layer.
 
-use russh_common::algorithms::{Algorithm, MacAlgorithm};
+use russh_common::algorithms::{Algorithm, AlgorithmCategory, MacAlgorithm};
 
 #[cfg(any(
     feature = "hmac-sha1",
@@ -39,6 +39,10 @@ impl None {
 impl Algorithm for None {
     fn name(&self) -> &'static str {
         "none"
+    }
+
+    fn category(&self) -> AlgorithmCategory {
+        AlgorithmCategory::Mac
     }
 }
 

@@ -441,12 +441,12 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             .all_algorithms_valid()
             .map_err(|err| BuildError::InvalidAlgorithm(err))?;
 
-        if let Some(algorithm_category) = self.available_algorithms.empty_algorithm_category() {
-            return Err(BuildError::EmptyAlgorithmCategory(algorithm_category));
+        if let Some(role) = self.available_algorithms.empty_algorithm_role() {
+            return Err(BuildError::EmptyAlgorithmRole(role));
         }
 
-        if let Some(algorithm_category) = self.available_algorithms.required_none_missing() {
-            return Err(BuildError::RequiredNoneAlgorithmMissing(algorithm_category));
+        if let Some(role) = self.available_algorithms.required_none_missing() {
+            return Err(BuildError::RequiredNoneAlgorithmMissing(role));
         }
 
         let runtime_state = RuntimeState::new(

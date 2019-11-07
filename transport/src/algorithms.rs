@@ -3,8 +3,9 @@
 use num_bigint::BigInt;
 use russh_common::{
     algorithms::{
-        CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm,
-        KeyExchangeHashFunction, MacAlgorithm,
+        AlgorithmCategory, AlgorithmDirection, AlgorithmRole, CompressionAlgorithm,
+        EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeHashFunction,
+        MacAlgorithm,
     },
     writer_primitives::write_mpint,
     ConnectionRole,
@@ -15,30 +16,6 @@ use crate::errors::{InvalidAlgorithmError, LoadHostKeyError};
 
 pub(crate) mod builtin;
 pub(crate) mod helpers;
-
-// TODO: rethink categories (don't include direction in category)
-// then make a category(&self) function here
-// TODO: move this to common
-/// The possible categories for algorithms.
-#[derive(Debug, PartialEq, Eq)]
-pub enum AlgorithmCategory {
-    /// A key exchange algorithm.
-    KeyExchange,
-    /// A host key algorithm.
-    HostKey,
-    /// An encryption algorithm to encrypt client to server traffic.
-    EncryptionClientToServer,
-    /// An encryption algorithm to encrypt server to client traffic.
-    EncryptionServerToClient,
-    /// A MAC algorithm to authenticate client to server traffic.
-    MacClientToServer,
-    /// A MAC algorithm to authenticate server to client traffic.
-    MacServerToClient,
-    /// A compression algorithms for client to server traffic.
-    CompressionClientToServer,
-    /// A compression algorithms for server to client traffic.
-    CompressionServerToClient,
-}
 
 /// Contains the algorithms available for communication.
 pub(crate) struct AvailableAlgorithms {
@@ -183,58 +160,94 @@ impl AvailableAlgorithms {
     }
 
     /// Returns the name of the first empty algorithm category.
-    pub(crate) fn empty_algorithm_category(&self) -> Option<AlgorithmCategory> {
+    pub(crate) fn empty_algorithm_role(&self) -> Option<AlgorithmRole> {
         if self.kex.is_empty() {
-            Some(AlgorithmCategory::KeyExchange)
+            Some(AlgorithmRole(AlgorithmCategory::KeyExchange, None))
         } else if self.host_key.is_empty() {
-            Some(AlgorithmCategory::HostKey)
+            Some(AlgorithmRole(AlgorithmCategory::HostKey, None))
         } else if self.encryption_client_to_server.is_empty() {
-            Some(AlgorithmCategory::EncryptionClientToServer)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Encryption,
+                Some(AlgorithmDirection::ClientToServer),
+            ))
         } else if self.encryption_server_to_client.is_empty() {
-            Some(AlgorithmCategory::EncryptionServerToClient)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Encryption,
+                Some(AlgorithmDirection::ServerToClient),
+            ))
         } else if self.mac_client_to_server.is_empty() {
-            Some(AlgorithmCategory::MacClientToServer)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Mac,
+                Some(AlgorithmDirection::ClientToServer),
+            ))
         } else if self.mac_server_to_client.is_empty() {
-            Some(AlgorithmCategory::MacServerToClient)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Mac,
+                Some(AlgorithmDirection::ServerToClient),
+            ))
         } else if self.compression_client_to_server.is_empty() {
-            Some(AlgorithmCategory::CompressionClientToServer)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Compression,
+                Some(AlgorithmDirection::ClientToServer),
+            ))
         } else if self.compression_server_to_client.is_empty() {
-            Some(AlgorithmCategory::CompressionServerToClient)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Compression,
+                Some(AlgorithmDirection::ServerToClient),
+            ))
         } else {
             None
         }
     }
 
-    /// Returns the name of the first algorithm category with a missing required "none" algorithm.
-    pub(crate) fn required_none_missing(&self) -> Option<AlgorithmCategory> {
+    /// Returns the name of the first algorithm role with a missing required "none" algorithm.
+    pub(crate) fn required_none_missing(&self) -> Option<AlgorithmRole> {
         if self
             .encryption_client_to_server
             .iter()
             .all(|a| a.name() != "none")
         {
-            Some(AlgorithmCategory::EncryptionClientToServer)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Encryption,
+                Some(AlgorithmDirection::ClientToServer),
+            ))
         } else if self
             .encryption_server_to_client
             .iter()
             .all(|a| a.name() != "none")
         {
-            Some(AlgorithmCategory::EncryptionServerToClient)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Encryption,
+                Some(AlgorithmDirection::ServerToClient),
+            ))
         } else if self.mac_client_to_server.iter().all(|a| a.name() != "none") {
-            Some(AlgorithmCategory::MacClientToServer)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Mac,
+                Some(AlgorithmDirection::ClientToServer),
+            ))
         } else if self.mac_server_to_client.iter().all(|a| a.name() != "none") {
-            Some(AlgorithmCategory::MacServerToClient)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Mac,
+                Some(AlgorithmDirection::ServerToClient),
+            ))
         } else if self
             .compression_client_to_server
             .iter()
             .all(|a| a.name() != "none")
         {
-            Some(AlgorithmCategory::CompressionClientToServer)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Compression,
+                Some(AlgorithmDirection::ClientToServer),
+            ))
         } else if self
             .compression_server_to_client
             .iter()
             .all(|a| a.name() != "none")
         {
-            Some(AlgorithmCategory::CompressionServerToClient)
+            Some(AlgorithmRole(
+                AlgorithmCategory::Compression,
+                Some(AlgorithmDirection::ServerToClient),
+            ))
         } else {
             None
         }
