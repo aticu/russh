@@ -33,6 +33,11 @@ However it is still possible to use tried and tested non-Rust implementations of
 Russh should follow the best security practices.
 This includes things like zeroing keys, after they've been used.
 
+### No unsafe code
+
+Russh is `#[deny(unsafe_code)]` to prevent security issues through unsafe code.
+The exception to this is the (optional) `russh-algorithms` crate, which uses unsafe code solely to erase keys from memory after their use.
+
 ### Customizability
 
 Almost every aspect of a connection made by russh should be customizable out of the box.
