@@ -20,7 +20,11 @@ mod unencrypted_packet;
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct ParserInputStream {
     /// The data that has been received so far.
-    // TODO: consider using `bytes::BytesMut` here instead
+    // This could also be implemented using `bytes::BytesMut`, but there does not seem to be
+    // any significant advantage for this use case, since `Vec` does exactly what is required here.
+    //
+    // However, if performance problems arise, this could be benchmarked to verify that there is
+    // no significant difference.
     data: Vec<u8>,
     /// The index of the first byte that has not yet been parsed.
     parsed_until: usize,
@@ -72,7 +76,10 @@ impl ParserInputStream {
                 _ => ParseError::Invalid,
             })?;
 
-        // TODO: find a better alternative to doing this
+        // This seems to be the best way to calculate the offset a slice (`self.data`) and its
+        // subslice (`rest_data`). There also exists a `sublice_index` crate which performs this
+        // exact calculation, but adding another dependency for this one use case is probably not
+        // worth it.
         let bytes_read = rest_data.as_ptr() as usize - self.data.as_ptr() as usize;
 
         self.parsed_until = bytes_read;
