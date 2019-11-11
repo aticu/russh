@@ -7,12 +7,13 @@ use russh_common::{
         EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeHashFunction,
         MacAlgorithm,
     },
-    writer_primitives::write_mpint,
     ConnectionRole,
 };
 use std::{borrow::Cow, fmt};
 
 use crate::errors::{InvalidAlgorithmError, LoadHostKeyError};
+
+mod key_expansion;
 
 pub(crate) mod builtin;
 pub(crate) mod helpers;
@@ -326,40 +327,6 @@ impl AvailableAlgorithms {
         mac_server_to_client.unload_key();
     }
 
-    /// Expands the given key by one iteration.
-    fn expand_key(
-        key: &mut Vec<u8>,
-        shared_secret: &[u8],
-        exchange_hash: &[u8],
-        len: usize,
-        hash_fn: KeyExchangeHashFunction,
-    ) {
-        // TODO: this can be optimized by reusing the allocation of the first calculation
-        if key.len() >= len {
-            return;
-        }
-
-        let hash_len = key.len();
-        let min_vec_len = shared_secret.len() + exchange_hash.len() + len;
-        let vec_len = if min_vec_len % hash_len != 0 {
-            min_vec_len + hash_len - (min_vec_len % hash_len)
-        } else {
-            min_vec_len
-        };
-
-        let mut key_vec = Vec::with_capacity(vec_len);
-        key_vec.extend(shared_secret);
-        key_vec.extend(exchange_hash);
-
-        key_vec.extend(&key[..]);
-
-        while key.len() < len {
-            let hash = hash_fn(&key_vec);
-            key.extend(&hash);
-            key_vec.extend(&hash);
-        }
-    }
-
     /// Loads the correct keys into the chosen algorithms.
     pub(crate) fn load_algorithm_keys(
         &mut self,
@@ -369,8 +336,6 @@ impl AvailableAlgorithms {
         exchange_hash: &[u8],
         session_id: &[u8],
     ) {
-        // TODO: move key expansion to a better place
-        // TODO: type alias for hash_fn type
         let encryption_client_to_server = self
             .encryption_client_to_server
             .iter_mut()
@@ -392,99 +357,34 @@ impl AvailableAlgorithms {
             .find(|a| a.name() == chosen_algorithms.mac_server_to_client)
             .expect("chosen algorithm exists in the available algorithms");
 
-        let mut shared_secret_mpint = Vec::new();
-        write_mpint(&shared_secret, &mut shared_secret_mpint).expect("vec writes don't fail");
+        let mut encryption_client_to_server_iv = vec![0; encryption_client_to_server.iv_size()];
+        let mut encryption_server_to_client_iv = vec![0; encryption_server_to_client.iv_size()];
+        let mut encryption_client_to_server_key = vec![0; encryption_client_to_server.key_size()];
+        let mut encryption_server_to_client_key = vec![0; encryption_server_to_client.key_size()];
+        let mut mac_client_to_server_key = vec![0; mac_client_to_server.key_size()];
+        let mut mac_server_to_client_key = vec![0; mac_server_to_client.key_size()];
 
-        let mut key_vec = Vec::new();
-        key_vec.extend(&shared_secret_mpint);
-        key_vec.extend(exchange_hash);
+        let mut keys = key_expansion::Keys {
+            encryption_client_to_server_iv: &mut encryption_client_to_server_iv,
+            encryption_server_to_client_iv: &mut encryption_server_to_client_iv,
+            encryption_client_to_server_key: &mut encryption_client_to_server_key,
+            encryption_server_to_client_key: &mut encryption_server_to_client_key,
+            mac_client_to_server_key: &mut mac_client_to_server_key,
+            mac_server_to_client_key: &mut mac_server_to_client_key,
+        };
 
-        let letter_offset = key_vec.len();
+        key_expansion::expand_keys(&mut keys, hash_fn, shared_secret, exchange_hash, session_id);
 
-        key_vec.extend(b"A");
-        key_vec.extend(session_id);
-
-        {
-            key_vec[letter_offset] = b'A';
-            let mut initial_iv = hash_fn(&key_vec);
-            Self::expand_key(
-                &mut initial_iv,
-                &shared_secret_mpint,
-                exchange_hash,
-                encryption_client_to_server.iv_size(),
-                hash_fn,
-            );
-
-            key_vec[letter_offset] = b'C';
-            let mut key = hash_fn(&key_vec);
-            Self::expand_key(
-                &mut key,
-                &shared_secret_mpint,
-                exchange_hash,
-                encryption_client_to_server.key_size(),
-                hash_fn,
-            );
-
-            encryption_client_to_server.load_key(
-                &initial_iv[..encryption_client_to_server.iv_size()],
-                &key[..encryption_client_to_server.key_size()],
-            );
-        }
-
-        {
-            key_vec[letter_offset] = b'B';
-            let mut initial_iv = hash_fn(&key_vec);
-            Self::expand_key(
-                &mut initial_iv,
-                &shared_secret_mpint,
-                exchange_hash,
-                encryption_server_to_client.iv_size(),
-                hash_fn,
-            );
-
-            key_vec[letter_offset] = b'D';
-            let mut key = hash_fn(&key_vec);
-            Self::expand_key(
-                &mut key,
-                &shared_secret_mpint,
-                exchange_hash,
-                encryption_server_to_client.key_size(),
-                hash_fn,
-            );
-
-            encryption_server_to_client.load_key(
-                &initial_iv[..encryption_server_to_client.iv_size()],
-                &key[..encryption_server_to_client.key_size()],
-            );
-        }
-
-        {
-            key_vec[letter_offset] = b'E';
-            let mut key = hash_fn(&key_vec);
-            Self::expand_key(
-                &mut key,
-                &shared_secret_mpint,
-                exchange_hash,
-                mac_client_to_server.key_size(),
-                hash_fn,
-            );
-
-            mac_client_to_server.load_key(&key[..mac_client_to_server.key_size()]);
-        }
-
-        {
-            key_vec[letter_offset] = b'F';
-            let mut key = hash_fn(&key_vec);
-            Self::expand_key(
-                &mut key,
-                &shared_secret_mpint,
-                exchange_hash,
-                mac_server_to_client.key_size(),
-                hash_fn,
-            );
-
-            mac_server_to_client.load_key(&key[..mac_server_to_client.key_size()]);
-        }
+        encryption_client_to_server.load_key(
+            keys.encryption_client_to_server_iv,
+            keys.encryption_client_to_server_key,
+        );
+        encryption_server_to_client.load_key(
+            keys.encryption_server_to_client_iv,
+            keys.encryption_server_to_client_key,
+        );
+        mac_client_to_server.load_key(keys.mac_client_to_server_key);
+        mac_server_to_client.load_key(keys.mac_server_to_client_key);
     }
 }
 
