@@ -23,20 +23,24 @@ Russh has the following goals, in order of priority.
 
 Russh should be a correct implementation of the SSH protocol.
 
-### Rust only
-
-Russh should be free from non-Rust dependencies, with the only exception being `libc`.
-However it is still possible to use tried and tested non-Rust implementations of cryptographic algorithms, if you prefer that.
-
 ### Security
 
 Russh should follow the best security practices.
 This includes things like zeroing keys, after they've been used.
 
+### Rust only
+
+Russh should be free from non-Rust dependencies, with the only exception being `libc`.
+However it is still possible to use tried and tested non-Rust implementations of cryptographic algorithms, if you prefer that.
+
 ### No unsafe code
 
 Russh is `#[deny(unsafe_code)]` to prevent security issues through unsafe code.
 The exception to this is the (optional) `russh-algorithms` crate, which uses unsafe code solely to erase keys from memory after their use.
+
+### Stable Rust
+
+Russh should only use features available on the stable Rust compiler.
 
 ### Customizability
 
@@ -60,6 +64,13 @@ Every aspect of the source code should be understandable without having to inves
 ### Performance
 
 Russh should be as fast as possible, while still following all it's other goals.
+
+---
+
+## License
+
+Russh is licensed under the terms of either the [MIT license](LICENSE-MIT) or the [Apache License](LICENSE-APACHE).
+Which license you choose is up to you.
 
 ---
 
