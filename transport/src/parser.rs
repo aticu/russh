@@ -47,16 +47,16 @@ impl ParserInputStream {
 
     /// This function makes some sanity checks to verify that the internal state is valid.
     #[cfg(debug_assertions)]
-    fn state_is_valid(&self) {
-        debug_assert!(self.parsed_until <= self.decrypted_until);
-        debug_assert!(self.decrypted_until <= self.initialized_until);
-        debug_assert!(self.initialized_until <= self.data.len());
+    fn assert_valid_state(&self) {
+        assert!(self.parsed_until <= self.decrypted_until);
+        assert!(self.decrypted_until <= self.initialized_until);
+        assert!(self.initialized_until <= self.data.len());
     }
 
     /// Reserves at least `size` bytes for input and returns access to them.
     pub(crate) fn reserve(&mut self, size: usize) -> &mut [u8] {
         #[cfg(debug_assertions)]
-        self.state_is_valid();
+        self.assert_valid_state();
 
         let additional_capacity = self.data.len() - self.initialized_until;
         let space_needed = size.saturating_sub(additional_capacity);
@@ -74,7 +74,7 @@ impl ParserInputStream {
         self.initialized_until += size;
 
         #[cfg(debug_assertions)]
-        self.state_is_valid();
+        self.assert_valid_state();
     }
 
     /// Parses the version information passed during initialization.
@@ -114,7 +114,7 @@ impl ParserInputStream {
         algorithm: &mut dyn EncryptionAlgorithm,
     ) -> Result<(), ParseError> {
         #[cfg(debug_assertions)]
-        self.state_is_valid();
+        self.assert_valid_state();
 
         let current_packet = &mut self.data[self.parsed_until..min(to, self.initialized_until)];
         let (decrypted, encrypted) =
@@ -132,7 +132,7 @@ impl ParserInputStream {
     /// Parses the length of the current packet.
     fn parse_packet_length(&self) -> Result<usize, ParseError> {
         #[cfg(debug_assertions)]
-        self.state_is_valid();
+        self.assert_valid_state();
         debug_assert!(self.decrypted_until >= self.parsed_until + PACKET_LEN_SIZE);
 
         let (_, packet_length) =
@@ -148,7 +148,7 @@ impl ParserInputStream {
         mac_len: usize,
     ) -> bool {
         #[cfg(debug_assertions)]
-        self.state_is_valid();
+        self.assert_valid_state();
 
         let block_size = dec_algorithm.cipher_block_size();
         let minimum_packet_length = max(block_size, 16);
@@ -185,7 +185,7 @@ impl ParserInputStream {
         mac_len: usize,
     ) -> Result<ParsedPacket<'a>, ParseError> {
         #[cfg(debug_assertions)]
-        self.state_is_valid();
+        self.assert_valid_state();
 
         if !self.is_packet_ready(dec_algorithm, mac_len) {
             return Err(ParseError::Incomplete);
@@ -214,7 +214,7 @@ impl ParserInputStream {
     /// Shrinks the input to the smallest possible size.
     pub(crate) fn remove_old_data(&mut self) {
         #[cfg(debug_assertions)]
-        self.state_is_valid();
+        self.assert_valid_state();
 
         self.data.drain(..self.parsed_until);
 
