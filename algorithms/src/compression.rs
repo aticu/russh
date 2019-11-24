@@ -10,6 +10,7 @@ use std::{borrow::Cow, error::Error};
 /// This is used for sending uncompressed data.
 #[derive(Debug, PartialEq, Eq)]
 // This isn't a unit struct, to allow for future expansions of this.
+#[non_exhaustive]
 pub struct None {}
 
 impl None {

@@ -15,6 +15,7 @@ pub use self::aes_ctr::*;
 /// instead of an encryption algorithm during key exchange.
 #[derive(Debug, PartialEq, Eq)]
 // This isn't a unit struct, to allow for future expansions of this.
+#[non_exhaustive]
 pub struct None {}
 
 impl None {
