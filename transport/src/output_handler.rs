@@ -150,28 +150,30 @@ impl<'o, Output: OutputStream> PacketFlusher<'o, Output> {
 
 /// Returns the distribution for packet lengths to be used by default.
 ///
-/// Produces a distribution with the chance of 0 to 6 extra blocks being roughly 50%.
-/// Each additional block is increasingly less likely.
-/// The chances of additional blocks are roughly as follows (measured in 1_000_000
-/// trials):
+/// # Overview for padding length distribution `default_padding_length_distribution`:
+/// 
+/// Measured in 1_000_000 trials.
 ///
-/// +----+----------+----+---------+----+---------+
-/// | blk|   chance | blk|  chance | blk|  chance |
-/// +----+----------+----+---------+----+---------+
-/// |  0 | 18.0098% | 11 | 2.4851% | 22 | 1.1363% |
-/// |  1 | 12.6859% | 12 | 2.2693% | 23 | 1.0517% |
-/// |  2 |  8.3839% | 13 | 2.1098% | 24 | 0.9886% |
-/// |  3 |  6.5598% | 14 | 1.9557% | 25 | 0.9417% |
-/// |  4 |  5.4453% | 15 | 1.8157% | 26 | 0.8832% |
-/// |  5 |  4.6806% | 16 | 1.6759% | 27 | 0.8255% |
-/// |  6 |  4.0755% | 17 | 1.5661% | 28 | 0.7916% |
-/// |  7 |  3.6174% | 18 | 1.4710% | 29 | 0.7443% |
-/// |  8 |  3.3081% | 19 | 1.3680% | 30 | 0.6977% |
-/// |  9 |  2.9330% | 20 | 1.2868% | 31 | 0.3224% |
-/// | 10 |  2.7221% | 21 | 1.1922% |    |         |
-/// +----+----------+----+---------+----+---------+
+/// +-----+---------+-----+---------+-----+---------+-----+---------+-----+---------+
+/// | blk |  chance | blk |  chance | blk |  chance | blk |  chance | blk |  chance |
+/// +-----+---------+-----+---------+-----+---------+-----+---------+-----+---------+
+/// |   0 |  43.58% |   7 |   1.22% |  14 |   0.09% |  21 |   0.01% |  28 |   0.00% |
+/// |   1 |  24.68% |   8 |   0.80% |  15 |   0.05% |  22 |   0.00% |  29 |   0.00% |
+/// |   2 |  12.12% |   9 |   0.54% |  16 |   0.04% |  23 |   0.00% |  30 |   0.00% |
+/// |   3 |   7.00% |  10 |   0.37% |  17 |   0.02% |  24 |   0.00% |  31 |   0.00% |
+/// |   4 |   4.32% |  11 |   0.25% |  18 |   0.02% |  25 |   0.00% |     |         |
+/// |   5 |   2.75% |  12 |   0.18% |  19 |   0.01% |  26 |   0.00% |     |         |
+/// |   6 |   1.80% |  13 |   0.12% |  20 |   0.01% |  27 |   0.00% |     |         |
+/// +-----+---------+-----+---------+-----+---------+-----+---------+-----+---------+
+///
+/// >=25% chance to have at most 1 additional blocks.
+/// >=50% chance to have at most 2 additional blocks.
+/// >=75% chance to have at most 3 additional blocks.
+/// >=90% chance to have at most 5 additional blocks.
+/// >=95% chance to have at most 7 additional blocks.
+/// >=99% chance to have at most 11 additional blocks.
 pub(crate) fn default_padding_length_distribution() -> Box<dyn FnMut(&mut dyn RngCore) -> u8> {
-    let gamma = Gamma::new(0.5, 25.0).unwrap();
+    let gamma = Gamma::new(0.5, 3.0).unwrap();
 
     Box::new(move |rng| {
         let mut float = gamma.sample(rng);

@@ -5,3 +5,7 @@ members = [
     "common",
     "transport",
 ]
+
+exclude = [
+    "padding_distribution_analyzer"
+]
