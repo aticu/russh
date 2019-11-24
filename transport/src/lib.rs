@@ -51,6 +51,9 @@ pub mod errors;
 // TODO: track movement of sensitive data (e.g. keys) in memory and make sure it is zeroed, repeat
 // for algorithm implementations
 // TODO: document default-algorithms feature and its consequences for the none algorithms
+// TODO: use the TCP_NODELAY option when later introducing network handlers
+
+static_assertions::assert_cfg!(not(target_pointer_width = "16"), "16-bit platforms are not supported by russh.");
 
 /// A handler for the SSH transport layer.
 pub struct Handler<Input: InputStream, Output: OutputStream> {

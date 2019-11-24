@@ -45,20 +45,36 @@ impl ParserInputStream {
         }
     }
 
-    /// Reserves `size` bytes for input and returns access to them.
+    /// This function makes some sanity checks to verify that the internal state is valid.
+    #[cfg(debug_assertions)]
+    fn state_is_valid(&self) {
+        debug_assert!(self.parsed_until <= self.decrypted_until);
+        debug_assert!(self.decrypted_until <= self.initialized_until);
+        debug_assert!(self.initialized_until <= self.data.len());
+    }
+
+    /// Reserves at least `size` bytes for input and returns access to them.
     pub(crate) fn reserve(&mut self, size: usize) -> &mut [u8] {
+        #[cfg(debug_assertions)]
+        self.state_is_valid();
+
         let additional_capacity = self.data.len() - self.initialized_until;
         let space_needed = size.saturating_sub(additional_capacity);
 
-        self.data.reserve(space_needed);
         self.data.resize(self.data.len() + space_needed, 0);
 
         &mut self.data[self.initialized_until..]
     }
 
-    /// Indicates that `size` additional bytes are now in use.
+    /// Indicates that `size` additional bytes are now filled with arrived packet data.
+    ///
+    /// # Panics
+    /// This method may panic if more bytes are indicated as used than were previously reserved.
     pub(crate) fn indicate_used(&mut self, size: usize) {
         self.initialized_until += size;
+
+        #[cfg(debug_assertions)]
+        self.state_is_valid();
     }
 
     /// Parses the version information passed during initialization.
@@ -97,6 +113,9 @@ impl ParserInputStream {
         to: usize,
         algorithm: &mut dyn EncryptionAlgorithm,
     ) -> Result<(), ParseError> {
+        #[cfg(debug_assertions)]
+        self.state_is_valid();
+
         let current_packet = &mut self.data[self.parsed_until..min(to, self.initialized_until)];
         let (decrypted, encrypted) =
             current_packet.split_at_mut(self.decrypted_until - self.parsed_until);
@@ -110,16 +129,31 @@ impl ParserInputStream {
         }
     }
 
+    /// Parses the length of the current packet.
+    fn parse_packet_length(&self) -> Result<usize, ParseError> {
+        #[cfg(debug_assertions)]
+        self.state_is_valid();
+        debug_assert!(self.decrypted_until >= self.parsed_until + PACKET_LEN_SIZE);
+
+        let (_, packet_length) =
+            parse_unencrypted_packet_length(&self.data[self.parsed_until..self.decrypted_until])?;
+
+        Ok(packet_length as usize)
+    }
+
     /// Checks if the packet is ready to be parsed.
     pub(crate) fn is_packet_ready(
         &mut self,
         dec_algorithm: &mut dyn EncryptionAlgorithm,
         mac_len: usize,
     ) -> bool {
+        #[cfg(debug_assertions)]
+        self.state_is_valid();
+
         let block_size = dec_algorithm.cipher_block_size();
         let minimum_packet_length = max(block_size, 16);
 
-        if self.decrypted_until <= self.parsed_until + PACKET_LEN_SIZE {
+        if self.decrypted_until < self.parsed_until + PACKET_LEN_SIZE {
             match self.decrypt(self.parsed_until + minimum_packet_length, dec_algorithm) {
                 Ok(()) => (),
                 Err(ParseError::Incomplete) => return false,
@@ -127,10 +161,9 @@ impl ParserInputStream {
             }
         }
 
-        let (_, packet_length) =
-            parse_unencrypted_packet_length(&self.data[self.parsed_until..self.decrypted_until])
-                .expect("packet length should be parsable");
-        let packet_length = packet_length as usize;
+        let packet_length = self
+            .parse_packet_length()
+            .expect("packet length should be parsable");
 
         match self.decrypt(
             self.parsed_until + PACKET_LEN_SIZE + packet_length,
@@ -151,34 +184,38 @@ impl ParserInputStream {
         dec_algorithm: &mut dyn EncryptionAlgorithm,
         mac_len: usize,
     ) -> Result<ParsedPacket<'a>, ParseError> {
+        #[cfg(debug_assertions)]
+        self.state_is_valid();
+
         if !self.is_packet_ready(dec_algorithm, mac_len) {
             return Err(ParseError::Incomplete);
         }
 
-        let (_, packet_length) =
-            parse_unencrypted_packet_length(&self.data[self.parsed_until..self.decrypted_until])
-                .expect("packet length should be parsable");
-        let packet_length = packet_length as usize;
+        let packet_length = self
+            .parse_packet_length()
+            .expect("packet length should be parsable");
 
-        let (_, packet) = parse_unencrypted_packet(
-            &self.data[self.parsed_until..self.parsed_until + packet_length + 4 + mac_len],
-            mac_len,
-        )
-        .map_err(|err| match err {
-            ParseError::Incomplete => unreachable!(),
-            _ => ParseError::Invalid,
-        })?;
+        let packet_end = self.parsed_until + PACKET_LEN_SIZE + packet_length + mac_len;
+
+        let (_, packet) =
+            parse_unencrypted_packet(&self.data[self.parsed_until..packet_end], mac_len).map_err(
+                |err| match err {
+                    ParseError::Incomplete => unreachable!(),
+                    _ => ParseError::Invalid,
+                },
+            )?;
 
         self.decrypted_until += mac_len;
         self.parsed_until = self.decrypted_until;
-
-        // TODO: use TCP_NODELAY
 
         Ok(packet)
     }
 
     /// Shrinks the input to the smallest possible size.
     pub(crate) fn remove_old_data(&mut self) {
+        #[cfg(debug_assertions)]
+        self.state_is_valid();
+
         self.data.drain(..self.parsed_until);
 
         self.decrypted_until -= self.parsed_until;

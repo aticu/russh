@@ -345,6 +345,8 @@ pub trait EncryptionAlgorithm: Algorithm {
     /// The `encrypted_part` refers to the data in the packet that has yet to be decrypted.
     ///
     /// Returns the number of bytes decrypted.
+    /// A correct implementation of this algorithm must make as much progress in one call to
+    /// `decrypt_packet` as possible.
     ///
     /// # Panics
     /// The function may panic if `self.load_key` has not been called previously.
