@@ -163,12 +163,10 @@ impl WriterOutputStream {
 mod tests {
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
+    use russh_algorithms::{encryption, mac};
 
     use super::*;
-    use crate::{
-        algorithms::builtin::{EncryptionAlgorithmNone, MacAlgorithmNone},
-        output_handler::default_padding_length_distribution,
-    };
+    use crate::output_handler::default_padding_length_distribution;
 
     #[test]
     fn valid_padding_lengths() {
@@ -203,8 +201,8 @@ mod tests {
     fn append_packet_none() {
         // Seed it using a fixed value to ensure test stability (always the same values)
         let mut rng = ChaCha20Rng::from_seed(Default::default());
-        let mut encryption_algorithm = EncryptionAlgorithmNone::new();
-        let mut mac_algorithm = MacAlgorithmNone::new();
+        let mut encryption_algorithm = encryption::None::new();
+        let mut mac_algorithm = mac::None::new();
         let mut writer = WriterOutputStream::new();
         let mut distr = default_padding_length_distribution();
 

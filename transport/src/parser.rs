@@ -188,13 +188,14 @@ impl ParserInputStream {
 
 #[cfg(test)]
 mod tests {
+    use russh_algorithms::encryption;
+
     use super::*;
-    use crate::algorithms::builtin::EncryptionAlgorithmNone;
 
     #[test]
     fn decrypt_none() {
         let mut input_stream = ParserInputStream::new();
-        let mut algorithm = EncryptionAlgorithmNone::new();
+        let mut algorithm = encryption::None::new();
 
         assert_eq!(input_stream.initialized_until, 0);
         assert_eq!(input_stream.decrypted_until, 0);
@@ -242,7 +243,7 @@ mod tests {
     #[test]
     fn decrypt_packet_none() {
         let mut input_stream = ParserInputStream::new();
-        let mut dec_algorithm = EncryptionAlgorithmNone::new();
+        let mut dec_algorithm = encryption::None::new();
 
         let packet_data = &[
             0x00, 0x00, 0x00, 0x34, 0x12, b's', b'o', b'm', b'e', b' ', b'm', b'o', b'r', b'e',
@@ -382,7 +383,7 @@ mod tests {
     #[test]
     fn initialization_and_packet() {
         let mut input_stream = ParserInputStream::new();
-        let mut dec_algorithm = EncryptionAlgorithmNone::new();
+        let mut dec_algorithm = encryption::None::new();
 
         let packet_data = b"SSH is a protocol\r\nSSH-2.0-test@1.0\r\n\x00\x00\x00\x14\x08testpayload\x73\xae\xf8\x03\x7d\x38\x91\x10";
 
