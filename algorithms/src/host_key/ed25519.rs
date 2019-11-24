@@ -31,12 +31,17 @@ const PUBLIC_KEY_PREFIX: &[u8] = b"\x00\x00\x00\x0bssh-ed25519\x00\x00\x00\x20";
 pub struct Ed25519 {
     /// The keypair used to sign messages.
     keypair: Option<Keypair>,
+    /// The public key in use.
+    public_key: Option<Vec<u8>>,
 }
 
 impl Ed25519 {
     /// Creates a new `ssh-ed25519` host key algorithm.
     pub fn new() -> Ed25519 {
-        Ed25519 { keypair: None }
+        Ed25519 {
+            keypair: None,
+            public_key: None,
+        }
     }
 
     /// Creates a new boxed `ssh-ed25519` host key algorithm.
@@ -87,31 +92,29 @@ impl HostKeyAlgorithm for Ed25519 {
     fn load_keypair(&mut self, keypair: &[u8]) -> Result<(), Box<dyn Error>> {
         let keypair = Keypair::from_bytes(keypair).map_err(|e| Ed25519SignatureError(e))?;
 
-        let old_key = self.keypair.replace(keypair);
+        let public_key = {
+            let bytes = keypair.public.as_bytes();
 
-        assert!(old_key.is_none());
+            let mut vec = Vec::with_capacity(bytes.len() + PUBLIC_KEY_PREFIX.len());
+            vec.extend(PUBLIC_KEY_PREFIX);
+            vec.extend(bytes);
+
+            vec
+        };
+
+        let old_public_key = self.public_key.replace(public_key);
+        let old_keypair = self.keypair.replace(keypair);
+
+        assert!(old_public_key.is_none());
+        assert!(old_keypair.is_none());
 
         Ok(())
     }
 
-    fn public_key(&self) -> Vec<u8> {
-        // TODO: refactor this to use &[u8] instead of Vec<u8>. Implementations should calculate it
-        // once and store it later
-        // or consider changing this to taking `&mut [u8]` to avoid a copy operation
-        // TODO: make this unmutable again
-        let bytes = self
-            .keypair
+    fn public_key(&self) -> &[u8] {
+        self.public_key
             .as_ref()
             .expect("`load_keypair` was called successfully before `public_key`")
-            .public
-            .as_bytes();
-
-        let mut vec = Vec::with_capacity(bytes.len() + PUBLIC_KEY_PREFIX.len());
-
-        vec.extend(PUBLIC_KEY_PREFIX);
-        vec.extend(bytes);
-
-        vec
     }
 
     fn sign(&self, message: &[u8], signature: &mut [u8]) {

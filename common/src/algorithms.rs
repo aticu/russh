@@ -238,7 +238,7 @@ pub trait HostKeyAlgorithm: Algorithm {
     ///
     /// # Panics
     /// This function may panic if `load_keypair` was not previously called.
-    fn public_key(&self) -> Vec<u8>;
+    fn public_key(&self) -> &[u8];
 
     /// Signs the given message with the stored private key.
     ///
