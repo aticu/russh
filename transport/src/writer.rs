@@ -131,12 +131,7 @@ impl WriterOutputStream {
         mac_algorithm.compute(packet_data, sequence_number, mac_data);
 
         // Encrypt the whole_packet
-        let mut chunks = self.data[packet_start..mac_start]
-            .chunks_exact_mut(encryption_algorithm.cipher_block_size());
-        while let Some(chunk) = chunks.next() {
-            encryption_algorithm.encrypt_block(chunk);
-        }
-        debug_assert_eq!(chunks.into_remainder().len(), 0);
+        encryption_algorithm.encrypt_packet(&mut self.data[packet_start..mac_start]);
     }
 
     /// Writes the given version information to the output stream.

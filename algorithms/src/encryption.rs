@@ -63,12 +63,10 @@ impl EncryptionAlgorithm for None {
 
     fn unload_key(&mut self) {}
 
-    fn encrypt_block(&mut self, _input: &mut [u8]) {
-        debug_assert_eq!(_input.len(), self.cipher_block_size());
-    }
+    fn encrypt_packet(&mut self, _input: &mut [u8]) {}
 
-    fn decrypt_block(&mut self, _input: &mut [u8]) {
-        debug_assert_eq!(_input.len(), self.cipher_block_size());
+    fn decrypt_packet(&mut self, _decrypted_part: &[u8], encrypted_part: &mut [u8]) -> usize {
+        encrypted_part.len()
     }
 }
 

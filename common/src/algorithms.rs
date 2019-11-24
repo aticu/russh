@@ -332,21 +332,23 @@ pub trait EncryptionAlgorithm: Algorithm {
     /// `unload_key`.
     fn unload_key(&mut self);
 
-    /// Encrypts a single block of data in place.
+    /// Encrypts a packet and calculates its mac if applicable.
     ///
     /// # Panics
-    /// The function may panic if
-    /// - `input.len() != self.cipher_block_size()`
-    /// - `self.load_key` has not been called previously
-    fn encrypt_block(&mut self, input: &mut [u8]);
+    /// The function may panic if `self.load_key` has not been called previously.
+    fn encrypt_packet(&mut self, input: &mut [u8]);
 
-    /// Decrypts a single block of data in place.
+    /// Decrypts a packet as far as possible.
+    ///
+    /// The `decrypted_part` refers to the data in the packet that was already decrypted by a
+    /// previous call.
+    /// The `encrypted_part` refers to the data in the packet that has yet to be decrypted.
+    ///
+    /// Returns the number of bytes decrypted.
     ///
     /// # Panics
-    /// The function may panic if
-    /// - `input.len() != self.cipher_block_size()`
-    /// - `self.load_key` has not been called previously
-    fn decrypt_block(&mut self, input: &mut [u8]);
+    /// The function may panic if `self.load_key` has not been called previously.
+    fn decrypt_packet(&mut self, decrypted_part: &[u8], encrypted_part: &mut [u8]) -> usize;
 }
 
 /// Describes a message authentication algorithm.

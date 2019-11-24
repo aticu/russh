@@ -107,9 +107,7 @@ macro_rules! impl_aes_ctr {
                 self.algorithm.take();
             }
 
-            fn encrypt_block(&mut self, input: &mut [u8]) {
-                debug_assert_eq!(input.len(), self.cipher_block_size());
-
+            fn encrypt_packet(&mut self, input: &mut [u8]) {
                 let alg = self
                     .algorithm
                     .as_mut()
@@ -118,15 +116,15 @@ macro_rules! impl_aes_ctr {
                 alg.encrypt(input);
             }
 
-            fn decrypt_block(&mut self, input: &mut [u8]) {
-                debug_assert_eq!(input.len(), self.cipher_block_size());
-
+            fn decrypt_packet(&mut self, _decrypted_part: &[u8], encrypted_part: &mut [u8]) -> usize {
                 let alg = self
                     .algorithm
                     .as_mut()
                     .expect("algorithm was previously loaded");
 
-                alg.decrypt(input);
+                alg.decrypt(encrypted_part);
+
+                encrypted_part.len()
             }
         }
 

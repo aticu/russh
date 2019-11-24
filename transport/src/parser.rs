@@ -9,7 +9,7 @@ use self::{
     initialization::parse_initialization,
     unencrypted_packet::{parse_unencrypted_packet, parse_unencrypted_packet_length},
 };
-use crate::{errors::ParseError, version::VersionInformation};
+use crate::{constants::PACKET_LEN_SIZE, errors::ParseError, version::VersionInformation};
 
 pub(crate) use self::unencrypted_packet::ParsedPacket;
 
@@ -97,16 +97,11 @@ impl ParserInputStream {
         to: usize,
         algorithm: &mut dyn EncryptionAlgorithm,
     ) -> Result<(), ParseError> {
-        let block_size = algorithm.cipher_block_size();
+        let current_packet = &mut self.data[self.parsed_until..min(to, self.initialized_until)];
+        let (decrypted, encrypted) =
+            current_packet.split_at_mut(self.decrypted_until - self.parsed_until);
 
-        let chunks = self.data
-            [self.decrypted_until..max(self.decrypted_until, min(to, self.initialized_until))]
-            .chunks_exact_mut(algorithm.cipher_block_size());
-
-        for chunk in chunks {
-            algorithm.decrypt_block(chunk);
-            self.decrypted_until += block_size;
-        }
+        self.decrypted_until += algorithm.decrypt_packet(decrypted, encrypted);
 
         if to > self.decrypted_until {
             Err(ParseError::Incomplete)
@@ -124,7 +119,7 @@ impl ParserInputStream {
         let block_size = dec_algorithm.cipher_block_size();
         let minimum_packet_length = max(block_size, 16);
 
-        if self.decrypted_until <= self.parsed_until + minimum_packet_length {
+        if self.decrypted_until <= self.parsed_until + PACKET_LEN_SIZE {
             match self.decrypt(self.parsed_until + minimum_packet_length, dec_algorithm) {
                 Ok(()) => (),
                 Err(ParseError::Incomplete) => return false,
@@ -137,8 +132,14 @@ impl ParserInputStream {
                 .expect("packet length should be parsable");
         let packet_length = packet_length as usize;
 
-        match self.decrypt(self.parsed_until + 4 + packet_length, dec_algorithm) {
-            Ok(()) => self.initialized_until >= self.parsed_until + 4 + packet_length + mac_len,
+        match self.decrypt(
+            self.parsed_until + PACKET_LEN_SIZE + packet_length,
+            dec_algorithm,
+        ) {
+            Ok(()) => {
+                self.initialized_until
+                    >= self.parsed_until + PACKET_LEN_SIZE + packet_length + mac_len
+            }
             Err(ParseError::Incomplete) => false,
             Err(_) => unreachable!(),
         }
