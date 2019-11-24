@@ -14,7 +14,9 @@ use std::{
 };
 
 use crate::{
-    constants::{MIN_PACKET_LEN_ALIGN, MIN_PADDING_SIZE, PACKET_LEN_SIZE, PADDING_LEN_SIZE},
+    constants::{
+        MAX_PADDING_SIZE, MIN_PACKET_LEN_ALIGN, MIN_PADDING_SIZE, PACKET_LEN_SIZE, PADDING_LEN_SIZE,
+    },
     version::VersionInformation,
 };
 
@@ -50,8 +52,9 @@ impl WriterOutputStream {
         payload_len: usize,
         align: usize,
         rng: &mut dyn RngCore,
-        distr: &mut dyn FnMut(&mut dyn RngCore) -> u8,
+        padding_distribution: &mut dyn FnMut(&mut dyn RngCore) -> u8,
     ) -> u8 {
+        // Each packet's length (including padding length) needs to be a multiple of `align`.
         let offset_to_next_alignment =
             align - ((payload_len + PACKET_LEN_SIZE + PADDING_LEN_SIZE) % align);
 
@@ -60,25 +63,64 @@ impl WriterOutputStream {
         } else {
             offset_to_next_alignment + align
         };
-        let max_padding_len = {
-            let unaligned = (0xff / align) * align;
 
-            if unaligned + offset_to_next_alignment > 0xff {
-                unaligned - align + offset_to_next_alignment
+        let max_padding_len = {
+            let max_padding_unaligned = (MAX_PADDING_SIZE / align) * align;
+
+            if offset_to_next_alignment + max_padding_unaligned > MAX_PADDING_SIZE {
+                offset_to_next_alignment + max_padding_unaligned - align
             } else {
-                unaligned + offset_to_next_alignment
+                offset_to_next_alignment + max_padding_unaligned
             }
         };
 
-        let padding_len = min_padding_len
-            + min(
-                distr(rng) as usize,
-                (max_padding_len - min_padding_len) / align,
-            ) * align;
+        let padding_len = max(
+            min_padding_len,
+            min(
+                offset_to_next_alignment + padding_distribution(rng) as usize * align,
+                max_padding_len,
+            ),
+        );
 
         padding_len
             .try_into()
             .expect("padding len should fit into u8")
+    }
+
+    /// Writes the header of the packet.
+    fn write_header(&mut self, packet_len: u32, padding_len: u8) {
+        write_uint32(packet_len, &mut self.data).expect("vec write cannot error");
+        write_byte(padding_len, &mut self.data).expect("vec write cannot error");
+    }
+
+    /// Writes the payload of the packet.
+    fn write_payload(&mut self, payload: &[u8]) {
+        self.data.extend_from_slice(payload);
+    }
+
+    /// Writes the padding of the packet.
+    fn write_padding(&mut self, padding_len: u8, rng: &mut dyn RngCore) {
+        let padding_start = self.data.len();
+
+        self.data.resize(padding_start + padding_len as usize, 0);
+        rng.fill_bytes(&mut self.data[padding_start..]);
+    }
+
+    /// Writes the MAC of the packet.
+    fn write_mac(
+        &mut self,
+        packet_start: usize,
+        sequence_number: u32,
+        mac_algorithm: &mut dyn MacAlgorithm,
+    ) {
+        let mac_start = self.data.len();
+        let mac_len = mac_algorithm.mac_size();
+
+        self.data.resize(mac_start + mac_len as usize, 0);
+        let (packet_data, mac_data) =
+            self.data[packet_start..].split_at_mut(mac_start - packet_start);
+
+        mac_algorithm.compute(packet_data, sequence_number, mac_data);
     }
 
     /// Writes a packet with the given payload to the output stream.
@@ -94,7 +136,6 @@ impl WriterOutputStream {
         rng: &mut dyn RngCore,
         distr: &mut dyn FnMut(&mut dyn RngCore) -> u8,
     ) {
-        // First calculate the correct lengths
         let align = max(
             MIN_PACKET_LEN_ALIGN,
             encryption_algorithm.cipher_block_size(),
@@ -103,34 +144,19 @@ impl WriterOutputStream {
         let packet_len: u32 = (PADDING_LEN_SIZE + payload.len() + padding_len as usize)
             .try_into()
             .expect("packet size must fit into u32");
+        let mac_len = mac_algorithm.mac_size();
 
         let packet_start = self.data.len();
-
-        // Make enough room
         self.data
-            .reserve(packet_len as usize + PACKET_LEN_SIZE + mac_algorithm.mac_size());
+            .reserve(packet_len as usize + PACKET_LEN_SIZE + mac_len);
 
-        // Write the header
-        write_uint32(packet_len, &mut self.data).expect("vec write cannot error");
-        write_byte(padding_len, &mut self.data).expect("vec write cannot error");
+        self.write_header(packet_len, padding_len);
+        self.write_payload(payload);
+        self.write_padding(padding_len, rng);
 
-        // Write the data
-        self.data.extend_from_slice(payload);
-
-        // Write the padding
-        let padding_start = self.data.len();
-        self.data.resize(padding_start + padding_len as usize, 0);
-        rng.fill_bytes(&mut self.data[padding_start..]);
-
-        // Calculate the MAC
         let mac_start = self.data.len();
-        self.data
-            .resize(mac_start + mac_algorithm.mac_size() as usize, 0);
-        let (packet_data, mac_data) =
-            self.data[packet_start..].split_at_mut(mac_start - packet_start);
-        mac_algorithm.compute(packet_data, sequence_number, mac_data);
+        self.write_mac(packet_start, sequence_number, mac_algorithm);
 
-        // Encrypt the whole_packet
         encryption_algorithm.encrypt_packet(&mut self.data[packet_start..mac_start]);
     }
 
