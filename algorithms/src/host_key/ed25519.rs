@@ -26,7 +26,7 @@ const PUBLIC_KEY_PREFIX: &[u8] = b"\x00\x00\x00\x0bssh-ed25519\x00\x00\x00\x20";
 
 /// Implements the `ssh-ed25519` host key algorithm.
 ///
-/// The existance of this struct is controlled by the `ssh-ed25519` feature.
+/// The existence of this struct is controlled by the `ssh-ed25519` feature.
 #[derive(Debug)]
 pub struct Ed25519 {
     /// The keypair used to sign messages.

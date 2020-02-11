@@ -18,7 +18,7 @@ use x25519_dalek::{EphemeralSecret, PublicKey};
 
 /// Implements the `curve25519-sha256` key exchange algorithm.
 ///
-/// The existance of this struct is controlled by the `curve25519-sha256` feature.
+/// The existence of this struct is controlled by the `curve25519-sha256` feature.
 pub struct Curve25519Sha256 {
     /// The secret key used for the key exchange.
     secret: Option<EphemeralSecret>,

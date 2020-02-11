@@ -17,7 +17,7 @@ macro_rules! impl_hmac_sha {
         #[doc = $name_str]
         #[doc = "` MAC algorithm."]
         #[doc = ""]
-        #[doc = "The existance of this struct is controlled by the `"]
+        #[doc = "The existence of this struct is controlled by the `"]
         #[doc = $name_str]
         #[doc = "` feature."]
         #[derive(Debug)]

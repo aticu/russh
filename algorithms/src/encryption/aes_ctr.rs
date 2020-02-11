@@ -19,7 +19,7 @@ macro_rules! impl_aes_ctr {
         #[doc = $name_str]
         #[doc = "` encryption algorithm."]
         #[doc = ""]
-        #[doc = "The existance of this struct is controlled by the `"]
+        #[doc = "The existence of this struct is controlled by the `"]
         #[doc = $name_str]
         #[doc = "` feature."]
         #[derive(Debug)]
@@ -89,6 +89,10 @@ macro_rules! impl_aes_ctr {
             fn unload_key(&mut self) {
                 // Reinterpret the algorithm as a byte array.
                 // We need to do this in-place, otherwise we make additional copies of key.
+                //
+                // Safety
+                // This is safe, because the cipher instance will be dropped before it can be read
+                // again.
                 let reinterpreted: &mut Option<[u8; mem::size_of::<$alg>()]> = unsafe {
                     mem::transmute(&mut self.algorithm)
                 };
