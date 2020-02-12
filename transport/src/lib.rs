@@ -25,6 +25,7 @@ use crate::{
     },
     input_handler::InputHandler,
     output_handler::{OutputHandler, PacketFlusher},
+    padding_length::PaddingLengthDistribution,
     protocol::ProtocolHandler,
     runtime_state::RuntimeState,
 };
@@ -47,6 +48,7 @@ mod writer;
 
 pub mod constants;
 pub mod errors;
+pub mod padding_length;
 
 // TODO: track movement of sensitive data (e.g. keys) in memory and make sure it is zeroed, repeat
 // for algorithm implementations
@@ -116,7 +118,7 @@ pub struct Builder<Input: InputStream, Output: OutputStream> {
     /// The role the handler will have in the connection.
     connection_role: ConnectionRole,
     /// The distribution used for packet padding lengths.
-    padding_length_distribution: Option<Box<dyn FnMut(&mut dyn RngCore) -> u8>>,
+    padding_length_distribution: Option<Box<PaddingLengthDistribution>>,
     /// The random number generator used for any required randomness.
     rng: Option<Box<dyn RngCore>>,
     /// Whether to allow "none" algorithms for encryption and MAC.
@@ -413,9 +415,9 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     /// distribution function to determine the maximum value.
     /// If a number greater than the permissible number of extra blocks is returned, the maximum
     /// permissible number will be used.
-    pub fn padding_length_distribution<D: FnMut(&mut dyn RngCore) -> u8 + 'static>(
+    pub fn padding_length_distribution(
         self,
-        dist: D,
+        dist: Box<PaddingLengthDistribution>,
     ) -> Self {
         Builder {
             padding_length_distribution: Some(Box::new(dist)),

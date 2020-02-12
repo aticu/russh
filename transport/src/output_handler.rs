@@ -1,12 +1,11 @@
 //! Implements a handler to output to the partner.
 
-use rand::{distributions::Distribution, RngCore};
-use rand_distr::Gamma;
 use std::{borrow::Cow, fmt, io};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{
-    constants::MAX_EXTRA_PADDING_BLOCKS, runtime_state::RuntimeState, version::VersionInformation,
+    runtime_state::RuntimeState, version::VersionInformation,
+    padding_length::{self, PaddingLengthDistribution},
     writer::WriterOutputStream,
 };
 
@@ -24,7 +23,7 @@ pub(crate) struct OutputHandler<Output: OutputStream> {
     /// The number of packets that have been sent (modulo 32 bits).
     sequence_number: u32,
     /// The padding length distribution to be used.
-    padding_length_distribution: Box<dyn FnMut(&mut dyn RngCore) -> u8>,
+    padding_length_distribution: Box<PaddingLengthDistribution>,
 }
 
 impl<Output: OutputStream + fmt::Debug> fmt::Debug for OutputHandler<Output> {
@@ -42,14 +41,14 @@ impl<Output: OutputStream> OutputHandler<Output> {
     /// Creates a new handler for output.
     pub(crate) fn new(
         output: Output,
-        padding_length_distribution: Option<Box<dyn FnMut(&mut dyn RngCore) -> u8>>,
+        padding_length_distribution: Option<Box<PaddingLengthDistribution>>,
     ) -> OutputHandler<Output> {
         OutputHandler {
             packet_writer: WriterOutputStream::new(),
             output,
             sequence_number: 0,
             padding_length_distribution: padding_length_distribution
-                .unwrap_or_else(|| default_padding_length_distribution()),
+                .unwrap_or_else(|| padding_length::default_distribution()),
         }
     }
 
@@ -146,44 +145,6 @@ impl<'o, Output: OutputStream> PacketFlusher<'o, Output> {
     /// handler.send_packet(&[1, 2, 3]).flush();
     /// ```
     pub fn dont_flush(self) {}
-}
-
-/// Returns the distribution for packet lengths to be used by default.
-///
-/// # Overview for padding length distribution `default_padding_length_distribution`:
-///
-/// Measured in 1_000_000 trials.
-///
-/// +-----+---------+-----+---------+-----+---------+-----+---------+-----+---------+
-/// | blk |  chance | blk |  chance | blk |  chance | blk |  chance | blk |  chance |
-/// +-----+---------+-----+---------+-----+---------+-----+---------+-----+---------+
-/// |   0 |  43.58% |   7 |   1.22% |  14 |   0.09% |  21 |   0.01% |  28 |   0.00% |
-/// |   1 |  24.68% |   8 |   0.80% |  15 |   0.05% |  22 |   0.00% |  29 |   0.00% |
-/// |   2 |  12.12% |   9 |   0.54% |  16 |   0.04% |  23 |   0.00% |  30 |   0.00% |
-/// |   3 |   7.00% |  10 |   0.37% |  17 |   0.02% |  24 |   0.00% |  31 |   0.00% |
-/// |   4 |   4.32% |  11 |   0.25% |  18 |   0.02% |  25 |   0.00% |     |         |
-/// |   5 |   2.75% |  12 |   0.18% |  19 |   0.01% |  26 |   0.00% |     |         |
-/// |   6 |   1.80% |  13 |   0.12% |  20 |   0.01% |  27 |   0.00% |     |         |
-/// +-----+---------+-----+---------+-----+---------+-----+---------+-----+---------+
-///
-/// >=25% chance to have at most 1 additional blocks.
-/// >=50% chance to have at most 2 additional blocks.
-/// >=75% chance to have at most 3 additional blocks.
-/// >=90% chance to have at most 5 additional blocks.
-/// >=95% chance to have at most 7 additional blocks.
-/// >=99% chance to have at most 11 additional blocks.
-pub(crate) fn default_padding_length_distribution() -> Box<dyn FnMut(&mut dyn RngCore) -> u8> {
-    let gamma = Gamma::new(0.5, 3.0).unwrap();
-
-    Box::new(move |rng| {
-        let mut float = gamma.sample(rng);
-        while float > MAX_EXTRA_PADDING_BLOCKS as f64 {
-            float = gamma.sample(rng);
-        }
-
-        // Make sure it's a valid u8
-        float.max(0x00 as f64).min(0xff as f64).round() as u8
-    })
 }
 
 #[cfg(test)]

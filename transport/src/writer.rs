@@ -217,14 +217,14 @@ mod tests {
     use russh_algorithms::{encryption, mac};
 
     use super::*;
-    use crate::output_handler::default_padding_length_distribution;
+    use crate::padding_length;
 
     #[test]
     fn valid_padding_lengths() {
         // Seed it using a fixed value to ensure test stability (i.e. no errors from getting
         // entropy)
         let mut rng = ChaCha20Rng::from_seed(Default::default());
-        let mut distr = default_padding_length_distribution();
+        let mut distr = padding_length::default_distribution();
         let writer = WriterOutputStream::new();
 
         for align in 8..256usize {
@@ -255,7 +255,7 @@ mod tests {
         let mut encryption_algorithm = encryption::None::new();
         let mut mac_algorithm = mac::None::new();
         let mut writer = WriterOutputStream::new();
-        let mut distr = default_padding_length_distribution();
+        let mut distr = padding_length::default_distribution();
 
         assert_eq!(writer.data.len(), 0);
 

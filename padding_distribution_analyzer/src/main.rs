@@ -88,7 +88,7 @@ fn print_percentile(results: [u32; MAX_EXTRA_PADDING_BLOCKS + 1], percent: u32) 
     );
 }
 
-fn default_padding_length_distribution() -> Distr {
+fn default_distribution() -> Distr {
     let gamma = Gamma::new(0.5, 3.0).unwrap();
 
     Box::new(move |rng| {
@@ -101,19 +101,16 @@ fn default_padding_length_distribution() -> Distr {
     })
 }
 
-fn zero_padding_length_distribution() -> Distr {
+fn zero_distribution() -> Distr {
     Box::new(|_| 0)
 }
 
 fn main() {
     print_results_for(
-        "default_padding_length_distribution",
-        analyze_distr(default_padding_length_distribution()),
+        "default_distribution",
+        analyze_distr(default_distribution()),
     );
     println!();
     println!();
-    print_results_for(
-        "zero_padding_length_distribution",
-        analyze_distr(zero_padding_length_distribution()),
-    );
+    print_results_for("zero_distribution", analyze_distr(zero_distribution()));
 }
