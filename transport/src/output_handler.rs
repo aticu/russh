@@ -151,7 +151,7 @@ impl<'o, Output: OutputStream> PacketFlusher<'o, Output> {
 /// Returns the distribution for packet lengths to be used by default.
 ///
 /// # Overview for padding length distribution `default_padding_length_distribution`:
-/// 
+///
 /// Measured in 1_000_000 trials.
 ///
 /// +-----+---------+-----+---------+-----+---------+-----+---------+-----+---------+
