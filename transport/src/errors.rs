@@ -23,6 +23,9 @@ pub enum CommunicationError {
     /// A received packet had an invalid format.
     #[error(display = "a packet had an invalid format")]
     InvalidFormat,
+    /// A received packet had an invalid padding.
+    #[error(display = "a packet had an invalid padding")]
+    InvalidPadding,
     /// The MAC on a received packet was invalid.
     #[error(display = "a received MAC was invalid")]
     InvalidMac,

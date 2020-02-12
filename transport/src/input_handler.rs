@@ -132,7 +132,7 @@ impl<Input: InputStream> InputHandler<Input> {
             % max(algorithms.encryption.cipher_block_size(), 8)
             != 0
         {
-            return Err(CommunicationError::InvalidFormat);
+            return Err(CommunicationError::InvalidPadding);
         }
 
         algorithms
