@@ -18,6 +18,7 @@ default = [
     "aes128-ctr",
     "aes192-ctr",
     "aes256-ctr",
+    "chacha20-poly1305@openssh.com",
 
     # MAC
     "hmac-sha1",
@@ -36,6 +37,7 @@ ssh-ed25519 = ["ed25519-dalek"]
 aes128-ctr = ["aes-ctr", "static_assertions"]
 aes192-ctr = ["aes-ctr", "static_assertions"]
 aes256-ctr = ["aes-ctr", "static_assertions"]
+"chacha20-poly1305@openssh.com" = ["chacha20", "poly1305"]
 
 # MAC
 hmac-sha1 = ["hmac", "sha-1", "secstr"]
@@ -61,6 +63,8 @@ rand6 = { package = "rand", version = "0.6.4", optional = true }
 
 # Encryption
 aes-ctr = { version = "0.3", optional = true }
+chacha20 = { version = "0.2", features = ["legacy"], optional = true }
+poly1305 = { version = "0.5", optional = true }
 
 # MAC
 hmac = { version = "0.7", optional = true }
