@@ -4,10 +4,9 @@ use std::{borrow::Cow, cmp::max};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 use crate::{
-    algorithms::PacketAlgorithms,
     constants::READ_SIZE,
     errors::{CommunicationError, ParseError},
-    parser::{ParsedPacket, ParserInputStream},
+    parser::ParserInputStream,
     runtime_state::RuntimeState,
     version::VersionInformation,
 };
@@ -74,6 +73,7 @@ impl<Input: InputStream> InputHandler<Input> {
                     continue;
                 }
                 Err(ParseError::Invalid) => break Err(CommunicationError::InvalidFormat),
+                Err(ParseError::InvalidMac) => unreachable!(),
             }
         }
     }
@@ -88,61 +88,67 @@ impl<Input: InputStream> InputHandler<Input> {
     ) -> Result<Cow<'a, [u8]>, CommunicationError> {
         self.packet_parser.remove_old_data();
 
-        let mut algorithms = runtime_state.input_algorithms();
-        let mac_len = algorithms.mac.mac_size();
+        let algorithms = runtime_state.input_algorithms();
+        let mac_len = algorithms
+            .mac
+            .as_ref()
+            .map(|alg| alg.mac_size())
+            .unwrap_or_else(|| {
+                algorithms.encryption.mac_size().expect(
+                    "encryption algorithm is authenticated when no MAC algorithm is present",
+                )
+            });
 
         while !self
             .packet_parser
-            .is_packet_ready(algorithms.encryption, mac_len)
+            .is_packet_ready(algorithms.encryption, mac_len, self.sequence_number)
+            .map_err(|err| match err {
+                ParseError::InvalidMac => CommunicationError::InvalidMac,
+                _ => unreachable!(),
+            })?
         {
             self.read_more_data().await?;
         }
 
-        let packet = match self
-            .packet_parser
-            .parse_packet(algorithms.encryption, mac_len)
-        {
+        let packet = match self.packet_parser.parse_packet(
+            algorithms.encryption,
+            algorithms.mac,
+            mac_len,
+            self.sequence_number,
+        ) {
             Ok(parsed_packet) => Ok(parsed_packet),
             Err(ParseError::Invalid) => Err(CommunicationError::InvalidFormat),
+            Err(ParseError::InvalidMac) => Err(CommunicationError::InvalidMac),
             Err(ParseError::Incomplete) => unreachable!(),
         }?;
 
-        handle_parsed_packet(packet, &mut self.sequence_number, &mut algorithms)
+        self.sequence_number = self.sequence_number.wrapping_add(1);
+
+        // TODO: implement ETM MAC algorithms
+        // if implemented, add this to the check here
+        let packet_len_counts_to_padding = algorithms.encryption.mac_size().is_some();
+        let len_modifier = if packet_len_counts_to_padding { 4 } else { 0 };
+        if (packet.whole_packet.len() - len_modifier)
+            % max(algorithms.encryption.cipher_block_size(), 8)
+            != 0
+        {
+            return Err(CommunicationError::InvalidFormat);
+        }
+
+        algorithms
+            .compression
+            .decompress(Cow::Borrowed(packet.payload))
+            .map_err(|err| CommunicationError::InvalidCompression(err))
     }
-}
-
-/// Handles a parsed packet and
-fn handle_parsed_packet<'data>(
-    packet: ParsedPacket<'data>,
-    sequence_number: &mut u32,
-    algorithms: &mut PacketAlgorithms,
-) -> Result<Cow<'data, [u8]>, CommunicationError> {
-    if packet.whole_packet.len() % max(algorithms.encryption.cipher_block_size(), 8) != 0 {
-        return Err(CommunicationError::InvalidFormat);
-    }
-
-    if !algorithms
-        .mac
-        .verify(packet.whole_packet, *sequence_number, packet.mac)
-    {
-        return Err(CommunicationError::InvalidMac);
-    }
-
-    *sequence_number = (*sequence_number).wrapping_add(1);
-
-    algorithms
-        .compression
-        .decompress(Cow::Borrowed(packet.payload))
-        .map_err(|err| CommunicationError::InvalidCompression(err))
 }
 
 #[cfg(test)]
 mod tests {
     use matches::assert_matches;
+    use num_bigint::BigInt;
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
     use sha2::digest::Digest;
-    use num_bigint::BigInt;
 
     use super::*;
     use crate::{
@@ -173,8 +179,8 @@ mod tests {
         let chosen_algorithms = ChosenAlgorithms {
             encryption_client_to_server: "none",
             encryption_server_to_client: "aes128-ctr",
-            mac_client_to_server: "none",
-            mac_server_to_client: "hmac-sha2-512",
+            mac_client_to_server: Some("none"),
+            mac_server_to_client: Some("hmac-sha2-512"),
             compression_client_to_server: "none",
             compression_server_to_client: "none",
         };

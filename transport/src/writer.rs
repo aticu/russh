@@ -1,10 +1,10 @@
 //! Handles aggragating of data into packages.
 //!
-//! This is the counter part to the parser module.
+//! This is the counter part to the `parser` module.
 
 use rand::RngCore;
 use russh_common::{
-    algorithms::{EncryptionAlgorithm, MacAlgorithm},
+    algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm},
     writer_primitives::{write_byte, write_uint32},
 };
 use std::{
@@ -53,10 +53,17 @@ impl WriterOutputStream {
         align: usize,
         rng: &mut dyn RngCore,
         padding_distribution: &mut dyn FnMut(&mut dyn RngCore) -> u8,
+        include_packet_length: bool,
     ) -> u8 {
+        let optional_packet_len_size = if include_packet_length {
+            PACKET_LEN_SIZE
+        } else {
+            0
+        };
+
         // Each packet's length (including padding length) needs to be a multiple of `align`.
         let offset_to_next_alignment =
-            align - ((payload_len + PACKET_LEN_SIZE + PADDING_LEN_SIZE) % align);
+            align - ((payload_len + optional_packet_len_size + PADDING_LEN_SIZE) % align);
 
         let min_padding_len = if offset_to_next_alignment >= MIN_PADDING_SIZE {
             offset_to_next_alignment
@@ -131,7 +138,7 @@ impl WriterOutputStream {
         &mut self,
         payload: &[u8],
         encryption_algorithm: &mut dyn EncryptionAlgorithm,
-        mac_algorithm: &mut dyn MacAlgorithm,
+        mac_algorithm: Option<&mut dyn MacAlgorithm>,
         sequence_number: u32,
         rng: &mut dyn RngCore,
         distr: &mut dyn FnMut(&mut dyn RngCore) -> u8,
@@ -140,11 +147,21 @@ impl WriterOutputStream {
             MIN_PACKET_LEN_ALIGN,
             encryption_algorithm.cipher_block_size(),
         );
-        let padding_len: u8 = self.generate_padding_len(payload.len(), align, rng, distr);
+        // TODO: check for ETM here, once its implemented
+        let include_packet_length = encryption_algorithm.mac_size().is_none();
+        let padding_len: u8 =
+            self.generate_padding_len(payload.len(), align, rng, distr, include_packet_length);
         let packet_len: u32 = (PADDING_LEN_SIZE + payload.len() + padding_len as usize)
             .try_into()
             .expect("packet size must fit into u32");
-        let mac_len = mac_algorithm.mac_size();
+        let mac_len = mac_algorithm
+            .as_ref()
+            .map(|alg| alg.mac_size())
+            .unwrap_or_else(|| {
+                encryption_algorithm.mac_size().expect(
+                    "encryption algorithm is authenticated when no MAC algorithm is present",
+                )
+            });
 
         let packet_start = self.data.len();
         self.data
@@ -155,9 +172,22 @@ impl WriterOutputStream {
         self.write_padding(padding_len, rng);
 
         let mac_start = self.data.len();
-        self.write_mac(packet_start, sequence_number, mac_algorithm);
+        if let Some(mac_algorithm) = mac_algorithm {
+            self.write_mac(packet_start, sequence_number, mac_algorithm);
+        }
 
-        encryption_algorithm.encrypt_packet(&mut self.data[packet_start..mac_start]);
+        let optional_mac_len = if let Some(mac_size) = encryption_algorithm.mac_size() {
+            self.data.resize(mac_start + mac_size, 0);
+            mac_size
+        } else {
+            0
+        };
+
+        encryption_algorithm.encrypt_packet(EncryptionContext::new(
+            sequence_number,
+            &mut self.data[packet_start..mac_start + optional_mac_len],
+            0,
+        ));
     }
 
     /// Writes the given version information to the output stream.
@@ -201,7 +231,7 @@ mod tests {
             if align.is_power_of_two() {
                 for payload_len in 0..1000usize {
                     let generated_size =
-                        writer.generate_padding_len(payload_len, align, &mut rng, &mut distr);
+                        writer.generate_padding_len(payload_len, align, &mut rng, &mut distr, true);
                     assert_eq!(
                         (PACKET_LEN_SIZE
                             + PADDING_LEN_SIZE
@@ -232,24 +262,27 @@ mod tests {
         writer.write_packet(
             b"some test data",
             &mut encryption_algorithm,
-            &mut mac_algorithm,
+            Some(&mut mac_algorithm),
             0,
             &mut rng,
             &mut distr,
         );
 
-        assert_eq!(writer.written_data(), &b"\x00\x00\x00\x24\x15some test data\xa8\x36\xef\xcc\x8b\x77\x0d\xc7\xda\x41\x59\x7c\x51\x57\x48\x8d\x77\x24\xe0\x3f\xb8"[..]);
+        assert_eq!(
+            writer.written_data(),
+            &b"\x00\x00\x00\x14\x05some test data\xa8\x36\xef\xcc\x8b"[..]
+        );
 
         writer.write_packet(
             b"some other test data",
             &mut encryption_algorithm,
-            &mut mac_algorithm,
+            Some(&mut mac_algorithm),
             0,
             &mut rng,
             &mut distr,
         );
 
-        assert_eq!(writer.written_data(), &b"\x00\x00\x00\x24\x15some test data\xa8\x36\xef\xcc\x8b\x77\x0d\xc7\xda\x41\x59\x7c\x51\x57\x48\x8d\x77\x24\xe0\x3f\xb8\x00\x00\x00\x1c\x07some other test data\x98\xba\x97\x7c\x73\x2d\x08"[..]);
+        assert_eq!(writer.written_data(), &b"\x00\x00\x00\x14\x05some test data\xa8\x36\xef\xcc\x8b\x00\x00\x00\x1c\x07some other test data\xc3\x87\xb6\x69\xb2\xee\x65"[..]);
 
         writer.remove_to(writer.written_data().len());
 
@@ -258,12 +291,15 @@ mod tests {
         writer.write_packet(
             b"a",
             &mut encryption_algorithm,
-            &mut mac_algorithm,
+            Some(&mut mac_algorithm),
             0,
             &mut rng,
             &mut distr,
         );
 
-        assert_eq!(writer.written_data(), &b"\x00\x00\x00\xcc\xcaa\xd5\x71\x33\xb0\x74\xd8\x39\xd5\x31\xed\x1f\x28\x51\x0a\xfb\x45\xac\xe1\x0a\x1f\x4b\x79\x4d\x6f\x2d\x09\xa0\xe6\x63\x26\x6c\xe1\xae\x7e\xd1\x08\x19\x68\xa0\x75\x8e\x71\x8e\x99\x7b\xd3\x62\xc6\xb0\xc3\x46\x34\xa9\xa0\xb3\x5d\x01\x27\x37\x68\x1f\x7b\x5d\x0f\x28\x1e\x3a\xfd\xe4\x58\xbc\x1e\x73\xd2\xd3\x13\xc9\xcf\x94\xc0\x5f\xf3\x71\x62\x40\xa2\x48\xf2\x13\x20\xa0\x58\xd7\xb3\x56\x6b\xd5\x20\xda\xaa\x3e\xd2\xbf\x0a\xc5\xb8\xb1\x20\xfb\x85\x27\x73\xc3\x63\x97\x34\xb4\x5c\x91\xa4\x2d\xd4\xcb\x83\xf8\x84\x0d\x2e\xed\xb1\x58\x13\x10\x62\xac\x3f\x1f\x2c\xf8\xff\x6d\xcd\x18\x56\xe8\x6a\x1e\x6c\x31\x67\x16\x7e\xe5\xa6\x88\x74\x2b\x47\xc5\xad\xfb\x59\xd4\xdf\x76\xfd\x1d\xb1\xe5\x1e\xe0\x3b\x1c\xa9\xf8\x2a\xca\x17\x3e\xdb\x8b\x72\x93\x47\x4e\xbe\x98\x0f\x90\x4d\x10\xc9\x16\x44\x2b\x47\x83\xa0\xe9\x84\x86\x0c"[..]);
+        assert_eq!(
+            writer.written_data(),
+            &b"\x00\x00\x00\x0c\x0aa\x12\xc6\x53\x3e\x32\xee\x7a\xed\x29\xb7"[..]
+        );
     }
 }

@@ -1,6 +1,8 @@
 //! Provides the encryption algorithms used by the SSH transport layer.
 
-use russh_common::algorithms::{Algorithm, AlgorithmCategory, EncryptionAlgorithm};
+use russh_common::algorithms::{
+    Algorithm, AlgorithmCategory, EncryptionAlgorithm, EncryptionContext,
+};
 
 #[cfg(any(feature = "aes128-ctr", feature = "aes192-ctr", feature = "aes256-ctr"))]
 #[doc(hidden)]
@@ -64,10 +66,10 @@ impl EncryptionAlgorithm for None {
 
     fn unload_key(&mut self) {}
 
-    fn encrypt_packet(&mut self, _input: &mut [u8]) {}
+    fn encrypt_packet(&mut self, _context: EncryptionContext) {}
 
-    fn decrypt_packet(&mut self, _decrypted_part: &[u8], encrypted_part: &mut [u8]) -> usize {
-        encrypted_part.len()
+    fn decrypt_packet(&mut self, mut context: EncryptionContext) -> usize {
+        context.unprocessed_part().len()
     }
 }
 

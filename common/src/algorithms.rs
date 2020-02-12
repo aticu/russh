@@ -281,6 +281,76 @@ pub enum KeyExchangeAlgorithmError {
     Other(Box<dyn Error>),
 }
 
+/// Describes the context of the encryption of a packet.
+///
+/// This is used both for encryption and for decryption and contains information that may be
+/// relevant to some encryption algorithms.
+#[derive(Debug)]
+pub struct EncryptionContext<'packet> {
+    /// The sequence number that the packet has.
+    packet_sequence_number: u32,
+    /// The data of the packet that is being processed.
+    data: &'packet mut [u8],
+    /// The offset of the first byte in the data that is not yet processed.
+    processed_until: usize,
+}
+
+impl EncryptionContext<'_> {
+    /// Creates a new `EncryptionContext` from the given data.
+    pub fn new(
+        packet_sequence_number: u32,
+        data: &mut [u8],
+        processed_until: usize,
+    ) -> EncryptionContext {
+        EncryptionContext {
+            packet_sequence_number,
+            data,
+            processed_until,
+        }
+    }
+
+    /// Returns the sequence number of the packet that is being processed.
+    pub fn packet_sequence_number(&self) -> u32 {
+        self.packet_sequence_number
+    }
+
+    /// Returns the part of the packet that was already processed.
+    ///
+    /// # Encryption
+    /// If `EncryptionContext` is passed to `encrypt_packet`, this will always contain the entire
+    /// packet, as the encryption always takes place in one pass.
+    ///
+    /// # Decryption
+    /// If `EncryptionContext` is passed to `decrypt_packet`, this will be the part of the packet
+    /// that was already decrypted.
+    pub fn processed_part(&self) -> &[u8] {
+        &self.data[..self.processed_until]
+    }
+
+    /// Returns the part of the packet that has yet to be processed.
+    ///
+    /// # Encryption
+    /// If `EncryptionContext` is passed to `encrypt_packet`, this will always be empty, as the
+    /// encryption always takes place in one pass.
+    ///
+    /// # Decryption
+    /// If `EncryptionContext` is passed to `decrypt_packet`, this will be the part of the packet
+    /// that still needs to be decrypted.
+    pub fn unprocessed_part(&mut self) -> &mut [u8] {
+        &mut self.data[self.processed_until..]
+    }
+
+    /// Returns a reference to both the processed and the unprocessed part of the packet.
+    pub fn all_data(&self) -> &[u8] {
+        self.data
+    }
+
+    /// Marks that an additional `num_bytes` have been processed.
+    pub fn mark_processed(&mut self, num_bytes: usize) {
+        self.processed_until += num_bytes;
+    }
+}
+
 /// Describes an encryption algorithm.
 pub trait EncryptionAlgorithm: Algorithm {
     /// Required, because Rust doesn't implement upcasting.
@@ -332,25 +402,65 @@ pub trait EncryptionAlgorithm: Algorithm {
     /// `unload_key`.
     fn unload_key(&mut self);
 
-    /// Encrypts a packet and calculates its mac if applicable.
+    /// Encrypts a packet.
     ///
     /// # Panics
-    /// The function may panic if `self.load_key` has not been called previously.
-    fn encrypt_packet(&mut self, input: &mut [u8]);
+    /// The function may panic if
+    /// - `self.load_key` has not been called previously
+    /// - `context.unprocessed_part().len() < 16`
+    /// - `&context.unprocessed_part()[..mem::size_of::<u32>()] !=
+    /// &(context.unprocessed_part().len() + self.mac_size().unwrap_or(0)).to_be_bytes()`
+    /// - `parser_primitives::parse_uint32(context.unprocessed_part()).unwrap().1
+    ///    + self.mac_size().unwrap_or(0) as u32 + 4 != context.unprocessed_part().len() as u32`
+    fn encrypt_packet(&mut self, context: EncryptionContext);
 
     /// Decrypts a packet as far as possible.
     ///
-    /// The `decrypted_part` refers to the data in the packet that was already decrypted by a
-    /// previous call.
-    /// The `encrypted_part` refers to the data in the packet that has yet to be decrypted.
-    ///
     /// Returns the number of bytes decrypted.
+    ///
     /// A correct implementation of this algorithm must make as much progress in one call to
     /// `decrypt_packet` as possible.
     ///
     /// # Panics
+    /// The function may panic if
+    /// - `self.load_key` has not been called previously
+    /// - `self.mac_size().is_some()`
+    fn decrypt_packet(&mut self, context: EncryptionContext) -> usize;
+
+    /// Returns the MAC size if this encryption algorithm does authenticated encryption.
+    ///
+    /// For algorithms where this method returns `Some(_)`, no separate MAC algorithm will be
+    /// chosen.  Also the `authenticated_decrypt_packet` method will be called instead of the
+    /// normal `decrypt_packet` method when decrypting.
+    ///
+    /// The value returned by this function must always be the same, otherwise the
+    /// SSH transport layer will not work as expected.
+    fn mac_size(&self) -> Option<usize> {
+        None
+    }
+
+    /// Decrypts a packet as far as possible and checks its MAC.
+    ///
+    /// Returns the number of bytes decrypted, unless there was an error with the MAC, in which
+    /// case `None` is returned.
+    ///
+    /// The MAC is stored at the end of the packet in `context.unprocessed_part`. The return value
+    /// should never indicate that the MAC was decrypted. For a single packet, the sum of the
+    /// returned numbers of `authenticated_decrypt_packet` should be equal to the size of the whole
+    /// packet not including the MAC.
+    ///
+    /// A correct implementation of this algorithm must make as much progress in one call to
+    /// `authenticated_decrypt_packet` as possible.
+    ///
+    /// # Panics
     /// The function may panic if `self.load_key` has not been called previously.
-    fn decrypt_packet(&mut self, decrypted_part: &[u8], encrypted_part: &mut [u8]) -> usize;
+    fn authenticated_decrypt_packet(&mut self, context: EncryptionContext) -> Option<usize> {
+        // "Use" the context to silence the warning.
+        // This is preferred over starting the name with `_` here, because it allows documentation
+        // of the trait with a clean name.
+        let _ = context;
+        unimplemented!()
+    }
 }
 
 /// Describes a message authentication algorithm.
@@ -397,6 +507,8 @@ pub trait MacAlgorithm: Algorithm {
     fn compute(&mut self, data: &[u8], sequence_number: u32, result: &mut [u8]);
 
     /// Verifies if the given MAC matches the given data.
+    ///
+    /// Returns `true` if the MAC matches the given data.
     ///
     /// It is recommended to implement this function manually to avoid allocations if possible.
     /// However be careful to use constant time equality checks, otherwise your implementation will

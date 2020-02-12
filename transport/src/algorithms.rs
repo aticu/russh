@@ -310,21 +310,37 @@ impl AvailableAlgorithms {
             .iter_mut()
             .find(|a| a.name() == chosen_algorithms.encryption_server_to_client)
             .expect("chosen algorithm exists in the available algorithms");
-        let mac_client_to_server = self
-            .mac_client_to_server
-            .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.mac_client_to_server)
-            .expect("chosen algorithm exists in the available algorithms");
-        let mac_server_to_client = self
-            .mac_server_to_client
-            .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.mac_server_to_client)
-            .expect("chosen algorithm exists in the available algorithms");
+        let mac_client_to_server = if let Some(chosen_alg) = chosen_algorithms.mac_client_to_server
+        {
+            Some(
+                self.mac_client_to_server
+                    .iter_mut()
+                    .find(|a| a.name() == chosen_alg)
+                    .expect("chosen algorithm exists in the available algorithms"),
+            )
+        } else {
+            None
+        };
+        let mac_server_to_client = if let Some(chosen_alg) = chosen_algorithms.mac_server_to_client
+        {
+            Some(
+                self.mac_server_to_client
+                    .iter_mut()
+                    .find(|a| a.name() == chosen_alg)
+                    .expect("chosen algorithm exists in the available algorithms"),
+            )
+        } else {
+            None
+        };
 
         encryption_client_to_server.unload_key();
         encryption_server_to_client.unload_key();
-        mac_client_to_server.unload_key();
-        mac_server_to_client.unload_key();
+        if let Some(mac_client_to_server) = mac_client_to_server {
+            mac_client_to_server.unload_key();
+        }
+        if let Some(mac_server_to_client) = mac_server_to_client {
+            mac_server_to_client.unload_key();
+        }
     }
 
     /// Loads the correct keys into the chosen algorithms.
@@ -346,23 +362,47 @@ impl AvailableAlgorithms {
             .iter_mut()
             .find(|a| a.name() == chosen_algorithms.encryption_server_to_client)
             .expect("chosen algorithm exists in the available algorithms");
-        let mac_client_to_server = self
-            .mac_client_to_server
-            .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.mac_client_to_server)
-            .expect("chosen algorithm exists in the available algorithms");
-        let mac_server_to_client = self
-            .mac_server_to_client
-            .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.mac_server_to_client)
-            .expect("chosen algorithm exists in the available algorithms");
+        let mac_client_to_server = if let Some(chosen_alg) = chosen_algorithms.mac_client_to_server
+        {
+            Some(
+                self.mac_client_to_server
+                    .iter_mut()
+                    .find(|a| a.name() == chosen_alg)
+                    .expect("chosen algorithm exists in the available algorithms"),
+            )
+        } else {
+            None
+        };
+        let mac_server_to_client = if let Some(chosen_alg) = chosen_algorithms.mac_server_to_client
+        {
+            Some(
+                self.mac_server_to_client
+                    .iter_mut()
+                    .find(|a| a.name() == chosen_alg)
+                    .expect("chosen algorithm exists in the available algorithms"),
+            )
+        } else {
+            None
+        };
 
         let mut encryption_client_to_server_iv = vec![0; encryption_client_to_server.iv_size()];
         let mut encryption_server_to_client_iv = vec![0; encryption_server_to_client.iv_size()];
         let mut encryption_client_to_server_key = vec![0; encryption_client_to_server.key_size()];
         let mut encryption_server_to_client_key = vec![0; encryption_server_to_client.key_size()];
-        let mut mac_client_to_server_key = vec![0; mac_client_to_server.key_size()];
-        let mut mac_server_to_client_key = vec![0; mac_server_to_client.key_size()];
+        let mut mac_client_to_server_key = vec![
+            0;
+            mac_client_to_server
+                .as_ref()
+                .map(|a| a.key_size())
+                .unwrap_or(0)
+        ];
+        let mut mac_server_to_client_key = vec![
+            0;
+            mac_server_to_client
+                .as_ref()
+                .map(|a| a.key_size())
+                .unwrap_or(0)
+        ];
 
         let mut keys = key_expansion::Keys {
             encryption_client_to_server_iv: &mut encryption_client_to_server_iv,
@@ -383,8 +423,12 @@ impl AvailableAlgorithms {
             keys.encryption_server_to_client_iv,
             keys.encryption_server_to_client_key,
         );
-        mac_client_to_server.load_key(keys.mac_client_to_server_key);
-        mac_server_to_client.load_key(keys.mac_server_to_client_key);
+        if let Some(mac_client_to_server) = mac_client_to_server {
+            mac_client_to_server.load_key(keys.mac_client_to_server_key);
+        }
+        if let Some(mac_server_to_client) = mac_server_to_client {
+            mac_server_to_client.load_key(keys.mac_server_to_client_key);
+        }
     }
 }
 
@@ -396,9 +440,9 @@ pub(crate) struct ChosenAlgorithms {
     /// The encryption algorithm for server to client communication.
     pub(crate) encryption_server_to_client: &'static str,
     /// The MAC algorithm for client to server communication.
-    pub(crate) mac_client_to_server: &'static str,
+    pub(crate) mac_client_to_server: Option<&'static str>,
     /// The MAC algorithm for server to client communication.
-    pub(crate) mac_server_to_client: &'static str,
+    pub(crate) mac_server_to_client: Option<&'static str>,
     /// The compression algorithm for client to server communication.
     pub(crate) compression_client_to_server: &'static str,
     /// The compression algorithm for server to client communication.
@@ -411,8 +455,8 @@ impl ChosenAlgorithms {
         ChosenAlgorithms {
             encryption_client_to_server: "none",
             encryption_server_to_client: "none",
-            mac_client_to_server: "none",
-            mac_server_to_client: "none",
+            mac_client_to_server: Some("none"),
+            mac_server_to_client: Some("none"),
             compression_client_to_server: "none",
             compression_server_to_client: "none",
         }
@@ -426,18 +470,35 @@ impl ChosenAlgorithms {
     ) -> Option<PacketAlgorithms<'a>> {
         // TODO: This happens for every packet. Consider speeding it up, by saving the indices as
         // well.
+        let encryption_algorithm = match connection_role {
+            ConnectionRole::Client => algorithms
+                .encryption_client_to_server
+                .iter_mut()
+                .find(|a| a.name() == self.encryption_client_to_server)
+                .map(|a| &mut **a)?,
+            ConnectionRole::Server => algorithms
+                .encryption_server_to_client
+                .iter_mut()
+                .find(|a| a.name() == self.encryption_server_to_client)
+                .map(|a| &mut **a)?,
+        };
+
+        let mac_needed = encryption_algorithm.mac_size().is_none();
+
         Some(match connection_role {
             ConnectionRole::Client => PacketAlgorithms {
-                encryption: algorithms
-                    .encryption_client_to_server
-                    .iter_mut()
-                    .find(|a| a.name() == self.encryption_client_to_server)
-                    .map(|a| &mut **a)?,
-                mac: algorithms
-                    .mac_client_to_server
-                    .iter_mut()
-                    .find(|a| a.name() == self.mac_client_to_server)
-                    .map(|a| &mut **a)?,
+                encryption: encryption_algorithm,
+                mac: if mac_needed {
+                    Some(
+                        algorithms
+                            .mac_client_to_server
+                            .iter_mut()
+                            .find(|a| Some(a.name()) == self.mac_client_to_server)
+                            .map(|a| &mut **a)?,
+                    )
+                } else {
+                    None
+                },
                 compression: algorithms
                     .compression_client_to_server
                     .iter_mut()
@@ -445,16 +506,18 @@ impl ChosenAlgorithms {
                     .map(|a| &mut **a)?,
             },
             ConnectionRole::Server => PacketAlgorithms {
-                encryption: algorithms
-                    .encryption_server_to_client
-                    .iter_mut()
-                    .find(|a| a.name() == self.encryption_server_to_client)
-                    .map(|a| &mut **a)?,
-                mac: algorithms
-                    .mac_server_to_client
-                    .iter_mut()
-                    .find(|a| a.name() == self.mac_server_to_client)
-                    .map(|a| &mut **a)?,
+                encryption: encryption_algorithm,
+                mac: if mac_needed {
+                    Some(
+                        algorithms
+                            .mac_server_to_client
+                            .iter_mut()
+                            .find(|a| Some(a.name()) == self.mac_server_to_client)
+                            .map(|a| &mut **a)?,
+                    )
+                } else {
+                    None
+                },
                 compression: algorithms
                     .compression_server_to_client
                     .iter_mut()
@@ -545,8 +608,8 @@ impl AlgorithmList<'static> {
 pub(crate) struct PacketAlgorithms<'a> {
     /// The encryption algorithm used for the packets.
     pub(crate) encryption: &'a mut dyn EncryptionAlgorithm,
-    /// The MAC algorithm used for the packets.
-    pub(crate) mac: &'a mut dyn MacAlgorithm,
+    /// The MAC algorithm used for the packets, if different from the encryption algorithm.
+    pub(crate) mac: Option<&'a mut dyn MacAlgorithm>,
     /// The compression algorithm used for the packets.
     pub(crate) compression: &'a mut dyn CompressionAlgorithm,
 }

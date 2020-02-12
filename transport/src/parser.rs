@@ -1,8 +1,8 @@
 //! Handles parsing of data from packages.
 //!
-//! This is the counter part to the aggragator module.
+//! This is the counter part to the `writer` module.
 
-use russh_common::algorithms::EncryptionAlgorithm;
+use russh_common::algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm};
 use std::cmp::{max, min};
 
 use self::{
@@ -104,29 +104,39 @@ impl ParserInputStream {
         Ok((info.0, info.1.to_vec()))
     }
 
-    /// Advances the decryption of data by `num_bytes`.
+    /// Advances the decryption of data to the index `to`.
     ///
-    /// If there isn't enough data available `ParseError::Incomplete` is returned
-    /// and the data is decrypted as far as possible.
+    /// If there isn't enough data available the data is decrypted as far as possible.
+    /// If there was progress made during decrypting, `Ok(true)` is returned, otherwise `Ok(false)`
+    /// is returned unless an error is detected.
     fn decrypt(
         &mut self,
         to: usize,
         algorithm: &mut dyn EncryptionAlgorithm,
-    ) -> Result<(), ParseError> {
+        packet_sequence_number: u32,
+    ) -> Result<bool, ParseError> {
         #[cfg(debug_assertions)]
         self.assert_valid_state();
 
         let current_packet = &mut self.data[self.parsed_until..min(to, self.initialized_until)];
-        let (decrypted, encrypted) =
-            current_packet.split_at_mut(self.decrypted_until - self.parsed_until);
+        let context = EncryptionContext::new(
+            packet_sequence_number,
+            current_packet,
+            self.decrypted_until - self.parsed_until,
+        );
 
-        self.decrypted_until += algorithm.decrypt_packet(decrypted, encrypted);
+        let decrypted_at_start = self.decrypted_until;
 
-        if to > self.decrypted_until {
-            Err(ParseError::Incomplete)
+        if algorithm.mac_size().is_some() {
+            match algorithm.authenticated_decrypt_packet(context) {
+                Some(decrypted_bytes) => self.decrypted_until += decrypted_bytes,
+                None => return Err(ParseError::InvalidMac),
+            }
         } else {
-            Ok(())
+            self.decrypted_until += algorithm.decrypt_packet(context);
         }
+
+        Ok(self.decrypted_until > decrypted_at_start)
     }
 
     /// Parses the length of the current packet.
@@ -146,17 +156,23 @@ impl ParserInputStream {
         &mut self,
         dec_algorithm: &mut dyn EncryptionAlgorithm,
         mac_len: usize,
-    ) -> bool {
+        packet_sequence_number: u32,
+    ) -> Result<bool, ParseError> {
         #[cfg(debug_assertions)]
         self.assert_valid_state();
 
         let block_size = dec_algorithm.cipher_block_size();
-        let minimum_packet_length = max(block_size, 16);
+        let minimum_packet_length = max(block_size, 8);
 
-        if self.decrypted_until < self.parsed_until + PACKET_LEN_SIZE {
-            match self.decrypt(self.parsed_until + minimum_packet_length, dec_algorithm) {
-                Ok(()) => (),
-                Err(ParseError::Incomplete) => return false,
+        while self.decrypted_until < self.parsed_until + PACKET_LEN_SIZE {
+            match self.decrypt(
+                self.parsed_until + minimum_packet_length,
+                dec_algorithm,
+                packet_sequence_number,
+            ) {
+                Ok(true) => continue,
+                Ok(false) => return Ok(false),
+                Err(ParseError::InvalidMac) => return Err(ParseError::InvalidMac),
                 Err(_) => unreachable!(),
             }
         }
@@ -165,29 +181,41 @@ impl ParserInputStream {
             .parse_packet_length()
             .expect("packet length should be parsable");
 
-        match self.decrypt(
-            self.parsed_until + PACKET_LEN_SIZE + packet_length,
-            dec_algorithm,
-        ) {
-            Ok(()) => {
-                self.initialized_until
-                    >= self.parsed_until + PACKET_LEN_SIZE + packet_length + mac_len
+        let optional_mac_len = if let Some(mac_size) = dec_algorithm.mac_size() {
+            mac_size
+        } else {
+            0
+        };
+
+        while self.decrypted_until < self.parsed_until + PACKET_LEN_SIZE + packet_length {
+            match self.decrypt(
+                self.parsed_until + PACKET_LEN_SIZE + packet_length + optional_mac_len,
+                dec_algorithm,
+                packet_sequence_number,
+            ) {
+                Ok(true) => continue,
+                Ok(false) => return Ok(false),
+                Err(ParseError::InvalidMac) => return Err(ParseError::InvalidMac),
+                Err(_) => unreachable!(),
             }
-            Err(ParseError::Incomplete) => false,
-            Err(_) => unreachable!(),
         }
+
+        Ok(self.initialized_until >= self.parsed_until + PACKET_LEN_SIZE + packet_length + mac_len)
     }
 
     /// Parses the next available packet, if possible.
+    // TODO: taint the parser once an error occurs
     pub(crate) fn parse_packet<'a>(
         &'a mut self,
         dec_algorithm: &mut dyn EncryptionAlgorithm,
+        mac_algorithm: Option<&mut dyn MacAlgorithm>,
         mac_len: usize,
+        packet_sequence_number: u32,
     ) -> Result<ParsedPacket<'a>, ParseError> {
         #[cfg(debug_assertions)]
         self.assert_valid_state();
 
-        if !self.is_packet_ready(dec_algorithm, mac_len) {
+        if !self.is_packet_ready(dec_algorithm, mac_len, packet_sequence_number)? {
             return Err(ParseError::Incomplete);
         }
 
@@ -207,6 +235,12 @@ impl ParserInputStream {
 
         self.decrypted_until += mac_len;
         self.parsed_until = self.decrypted_until;
+
+        if let Some(mac_algorithm) = mac_algorithm {
+            if !mac_algorithm.verify(packet.whole_packet, packet_sequence_number, packet.mac) {
+                return Err(ParseError::InvalidMac);
+            }
+        }
 
         Ok(packet)
     }
@@ -248,7 +282,7 @@ mod tests {
 
         assert_eq!(input_stream.data.len(), 50);
 
-        assert_eq!(input_stream.decrypt(2, &mut algorithm), Ok(()));
+        assert_eq!(input_stream.decrypt(2, &mut algorithm, 0), Ok(true));
         assert_eq!(input_stream.decrypted_until, 2);
         assert_eq!(input_stream.parsed_until, 0);
         assert_eq!(
@@ -256,7 +290,7 @@ mod tests {
             &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
 
-        assert_eq!(input_stream.decrypt(4, &mut algorithm), Ok(()));
+        assert_eq!(input_stream.decrypt(4, &mut algorithm, 0), Ok(true));
         assert_eq!(input_stream.decrypted_until, 4);
         assert_eq!(input_stream.parsed_until, 0);
         assert_eq!(
@@ -264,7 +298,7 @@ mod tests {
             &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
 
-        assert_eq!(input_stream.decrypt(8, &mut algorithm), Ok(()));
+        assert_eq!(input_stream.decrypt(8, &mut algorithm, 0), Ok(true));
         assert_eq!(input_stream.decrypted_until, 8);
         assert_eq!(input_stream.parsed_until, 0);
         assert_eq!(
@@ -272,10 +306,7 @@ mod tests {
             &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
 
-        assert_eq!(
-            input_stream.decrypt(9, &mut algorithm),
-            Err(ParseError::Incomplete)
-        );
+        assert_eq!(input_stream.decrypt(9, &mut algorithm, 0), Ok(false));
     }
 
     #[test]
@@ -301,7 +332,7 @@ mod tests {
         }
 
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 0),
             Err(ParseError::Incomplete)
         );
         assert_eq!(input_stream.parsed_until, 0);
@@ -316,7 +347,7 @@ mod tests {
         }
 
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 0),
             Err(ParseError::Incomplete)
         );
         assert_eq!(input_stream.parsed_until, 0);
@@ -331,7 +362,7 @@ mod tests {
         }
 
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 0),
             Ok(ParsedPacket {
                 payload: b"some more testing data as payload",
                 padding: &[
@@ -359,7 +390,7 @@ mod tests {
         assert_eq!(input_stream.data.len(), packet_data.len() - 56);
 
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
             Err(ParseError::Incomplete)
         );
         assert_eq!(input_stream.parsed_until, 0);
@@ -378,7 +409,7 @@ mod tests {
             input_stream.indicate_used(data_written);
         }
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
             Ok(ParsedPacket {
                 payload: b"testpayload",
                 padding: &[0x73, 0xae, 0xf8, 0x03, 0x7d, 0x38, 0x91, 0x10],
@@ -397,7 +428,7 @@ mod tests {
             &[][..]
         );
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
             Err(ParseError::Incomplete)
         );
 
@@ -413,7 +444,7 @@ mod tests {
             &[][..]
         );
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
             Err(ParseError::Incomplete)
         );
     }
@@ -483,7 +514,7 @@ mod tests {
         }
 
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 0),
             Ok(ParsedPacket {
                 payload: b"testpayload",
                 padding: &[0x73, 0xae, 0xf8, 0x03, 0x7d, 0x38, 0x91, 0x10],
@@ -502,7 +533,7 @@ mod tests {
             &[][..]
         );
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
             Err(ParseError::Incomplete)
         );
 
@@ -516,7 +547,7 @@ mod tests {
             &[][..]
         );
         assert_eq!(
-            input_stream.parse_packet(&mut dec_algorithm, 0),
+            input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
             Err(ParseError::Incomplete)
         );
     }

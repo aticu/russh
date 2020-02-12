@@ -1,7 +1,9 @@
 //! Provides implementations of the "aesXXX-ctr" encryption algorithms.
 
 use aes_ctr::stream_cipher::{generic_array::GenericArray, NewStreamCipher, StreamCipher};
-use russh_common::algorithms::{Algorithm, AlgorithmCategory, EncryptionAlgorithm};
+use russh_common::algorithms::{
+    Algorithm, AlgorithmCategory, EncryptionAlgorithm, EncryptionContext,
+};
 use std::mem;
 
 macro_rules! impl_aes_ctr {
@@ -111,24 +113,24 @@ macro_rules! impl_aes_ctr {
                 self.algorithm.take();
             }
 
-            fn encrypt_packet(&mut self, input: &mut [u8]) {
+            fn encrypt_packet(&mut self, mut context: EncryptionContext) {
                 let alg = self
                     .algorithm
                     .as_mut()
                     .expect("algorithm was previously loaded");
 
-                alg.encrypt(input);
+                alg.encrypt(context.unprocessed_part());
             }
 
-            fn decrypt_packet(&mut self, _decrypted_part: &[u8], encrypted_part: &mut [u8]) -> usize {
+            fn decrypt_packet(&mut self, mut context: EncryptionContext) -> usize {
                 let alg = self
                     .algorithm
                     .as_mut()
                     .expect("algorithm was previously loaded");
 
-                alg.decrypt(encrypted_part);
+                alg.decrypt(context.unprocessed_part());
 
-                encrypted_part.len()
+                context.unprocessed_part().len()
             }
         }
 

@@ -231,17 +231,17 @@ mod tests {
             assert_matches!(flusher.flush().await, Ok(()));
         });
 
-        assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x34\x17this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d\xc7\xda\x41\x59\x7c\x51\x57\x48\x8d\x77\x24\xe0\x3f\xb8\xd8\x4a"[..]);
+        assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
 
         futures::executor::block_on(async {
             let flusher = output_handler.send_packet(b"one more message", &mut runtime_state);
 
-            assert_eq!(flusher.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x34\x17this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d\xc7\xda\x41\x59\x7c\x51\x57\x48\x8d\x77\x24\xe0\x3f\xb8\xd8\x4a"[..]);
+            assert_eq!(flusher.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
 
             assert_matches!(flusher.flush().await, Ok(()));
         });
 
-        assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x34\x17this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d\xc7\xda\x41\x59\x7c\x51\x57\x48\x8d\x77\x24\xe0\x3f\xb8\xd8\x4a\x00\x00\x00\x1c\x0bone more message\x98\xba\x97\x7c\x73\x2d\x08\x0d\xcb\x0f\x29"[..]);
+        assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d\x00\x00\x00\x1c\x0bone more message\xc3\x87\xb6\x69\xb2\xee\x65\x86\x9f\x07\xe7"[..]);
     }
 
     #[test]
@@ -278,11 +278,17 @@ mod tests {
             );
         });
 
-        assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x34\x17this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d\xc7\xda\x41\x59\x7c\x51\x57\x48\x8d\x77\x24\xe0\x3f\xb8\xd8\x4a"[..]);
-
         let fake_input = FakeNetworkInput::new(output_handler.output.written().to_owned(), 1);
 
         let mut input_handler = InputHandler::new(fake_input);
+
+        let mut runtime_state = RuntimeState::new(
+            VersionInformation::new("test").unwrap(),
+            AvailableAlgorithms::default(),
+            ConnectionRole::Server,
+            Box::new(ChaCha20Rng::from_seed(Default::default())),
+            true,
+        );
 
         futures::executor::block_on(async {
             assert_eq!(

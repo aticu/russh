@@ -25,6 +25,11 @@ pub enum ParseError {
     Incomplete,
     /// The parsed input was invalid.
     Invalid,
+    /// The MAC of the packet was invalid.
+    ///
+    /// This can happen, when the MAC is handled by the encryption algorithm.
+    /// Decryption happens while parsing the packet, which is why this is a possible `ParseError`.
+    InvalidMac,
 }
 
 impl From<nom::Err<(&[u8], nom::error::ErrorKind)>> for ParseError {
