@@ -154,14 +154,8 @@ pub(in crate::protocol) fn parse_kexinit(input: &[u8]) -> Result<KexInitPacket, 
         .into_iter()
         .map(|s| Cow::Borrowed(s))
         .collect();
-    let mac_c2s = mac_c2s
-        .into_iter()
-        .map(|s| Cow::Borrowed(s))
-        .collect();
-    let mac_s2c = mac_s2c
-        .into_iter()
-        .map(|s| Cow::Borrowed(s))
-        .collect();
+    let mac_c2s = mac_c2s.into_iter().map(|s| Cow::Borrowed(s)).collect();
+    let mac_s2c = mac_s2c.into_iter().map(|s| Cow::Borrowed(s)).collect();
     let compression_c2s = compression_c2s
         .into_iter()
         .map(|s| Cow::Borrowed(s))

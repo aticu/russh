@@ -67,19 +67,11 @@ impl fmt::Debug for AvailableAlgorithms {
             )
             .field(
                 "mac_c2s",
-                &self
-                    .mac_c2s
-                    .iter()
-                    .map(|a| a.name())
-                    .collect::<Vec<_>>(),
+                &self.mac_c2s.iter().map(|a| a.name()).collect::<Vec<_>>(),
             )
             .field(
                 "mac_s2c",
-                &self
-                    .mac_s2c
-                    .iter()
-                    .map(|a| a.name())
-                    .collect::<Vec<_>>(),
+                &self.mac_s2c.iter().map(|a| a.name()).collect::<Vec<_>>(),
             )
             .field(
                 "compression_c2s",
@@ -133,16 +125,8 @@ impl AvailableAlgorithms {
                     .iter()
                     .map(|a| a.as_basic_algorithm()),
             )
-            .chain(
-                self.mac_c2s[..]
-                    .iter()
-                    .map(|a| a.as_basic_algorithm()),
-            )
-            .chain(
-                self.mac_s2c[..]
-                    .iter()
-                    .map(|a| a.as_basic_algorithm()),
-            )
+            .chain(self.mac_c2s[..].iter().map(|a| a.as_basic_algorithm()))
+            .chain(self.mac_s2c[..].iter().map(|a| a.as_basic_algorithm()))
             .chain(
                 self.compression_c2s[..]
                     .iter()
@@ -203,20 +187,12 @@ impl AvailableAlgorithms {
 
     /// Returns the name of the first algorithm role with a missing required "none" algorithm.
     pub(crate) fn required_none_missing(&self) -> Option<AlgorithmRole> {
-        if self
-            .encryption_c2s
-            .iter()
-            .all(|a| a.name() != "none")
-        {
+        if self.encryption_c2s.iter().all(|a| a.name() != "none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Encryption,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self
-            .encryption_s2c
-            .iter()
-            .all(|a| a.name() != "none")
-        {
+        } else if self.encryption_s2c.iter().all(|a| a.name() != "none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Encryption,
                 Some(AlgorithmDirection::ServerToClient),
@@ -231,20 +207,12 @@ impl AvailableAlgorithms {
                 AlgorithmCategory::Mac,
                 Some(AlgorithmDirection::ServerToClient),
             ))
-        } else if self
-            .compression_c2s
-            .iter()
-            .all(|a| a.name() != "none")
-        {
+        } else if self.compression_c2s.iter().all(|a| a.name() != "none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Compression,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self
-            .compression_s2c
-            .iter()
-            .all(|a| a.name() != "none")
-        {
+        } else if self.compression_s2c.iter().all(|a| a.name() != "none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Compression,
                 Some(AlgorithmDirection::ServerToClient),
@@ -310,8 +278,7 @@ impl AvailableAlgorithms {
             .iter_mut()
             .find(|a| a.name() == chosen_algorithms.encryption_s2c)
             .expect("chosen algorithm exists in the available algorithms");
-        let mac_c2s = if let Some(chosen_alg) = chosen_algorithms.mac_c2s
-        {
+        let mac_c2s = if let Some(chosen_alg) = chosen_algorithms.mac_c2s {
             Some(
                 self.mac_c2s
                     .iter_mut()
@@ -321,8 +288,7 @@ impl AvailableAlgorithms {
         } else {
             None
         };
-        let mac_s2c = if let Some(chosen_alg) = chosen_algorithms.mac_s2c
-        {
+        let mac_s2c = if let Some(chosen_alg) = chosen_algorithms.mac_s2c {
             Some(
                 self.mac_s2c
                     .iter_mut()
@@ -362,8 +328,7 @@ impl AvailableAlgorithms {
             .iter_mut()
             .find(|a| a.name() == chosen_algorithms.encryption_s2c)
             .expect("chosen algorithm exists in the available algorithms");
-        let mac_c2s = if let Some(chosen_alg) = chosen_algorithms.mac_c2s
-        {
+        let mac_c2s = if let Some(chosen_alg) = chosen_algorithms.mac_c2s {
             Some(
                 self.mac_c2s
                     .iter_mut()
@@ -373,8 +338,7 @@ impl AvailableAlgorithms {
         } else {
             None
         };
-        let mac_s2c = if let Some(chosen_alg) = chosen_algorithms.mac_s2c
-        {
+        let mac_s2c = if let Some(chosen_alg) = chosen_algorithms.mac_s2c {
             Some(
                 self.mac_s2c
                     .iter_mut()
@@ -389,20 +353,8 @@ impl AvailableAlgorithms {
         let mut encryption_s2c_iv = vec![0; encryption_s2c.iv_size()];
         let mut encryption_c2s_key = vec![0; encryption_c2s.key_size()];
         let mut encryption_s2c_key = vec![0; encryption_s2c.key_size()];
-        let mut mac_c2s_key = vec![
-            0;
-            mac_c2s
-                .as_ref()
-                .map(|a| a.key_size())
-                .unwrap_or(0)
-        ];
-        let mut mac_s2c_key = vec![
-            0;
-            mac_s2c
-                .as_ref()
-                .map(|a| a.key_size())
-                .unwrap_or(0)
-        ];
+        let mut mac_c2s_key = vec![0; mac_c2s.as_ref().map(|a| a.key_size()).unwrap_or(0)];
+        let mut mac_s2c_key = vec![0; mac_s2c.as_ref().map(|a| a.key_size()).unwrap_or(0)];
 
         let mut keys = key_expansion::Keys {
             encryption_c2s_iv: &mut encryption_c2s_iv,
@@ -415,14 +367,8 @@ impl AvailableAlgorithms {
 
         key_expansion::expand_keys(&mut keys, hash_fn, shared_secret, exchange_hash, session_id);
 
-        encryption_c2s.load_key(
-            keys.encryption_c2s_iv,
-            keys.encryption_c2s_key,
-        );
-        encryption_s2c.load_key(
-            keys.encryption_s2c_iv,
-            keys.encryption_s2c_key,
-        );
+        encryption_c2s.load_key(keys.encryption_c2s_iv, keys.encryption_c2s_key);
+        encryption_s2c.load_key(keys.encryption_s2c_iv, keys.encryption_s2c_key);
         if let Some(mac_c2s) = mac_c2s {
             mac_c2s.load_key(keys.mac_c2s_key);
         }

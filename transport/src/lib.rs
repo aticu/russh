@@ -242,10 +242,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
                     .available_algorithms
                     .encryption_c2s
                     .insert(0, a.clone());
-                builder
-                    .available_algorithms
-                    .encryption_s2c
-                    .insert(0, a);
+                builder.available_algorithms.encryption_s2c.insert(0, a);
             },
         )
     }
@@ -258,12 +255,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| {
-                builder
-                    .available_algorithms
-                    .encryption_c2s
-                    .insert(0, a)
-            },
+            |builder, a| builder.available_algorithms.encryption_c2s.insert(0, a),
         )
     }
 
@@ -275,12 +267,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| {
-                builder
-                    .available_algorithms
-                    .encryption_s2c
-                    .insert(0, a)
-            },
+            |builder, a| builder.available_algorithms.encryption_s2c.insert(0, a),
         )
     }
 
@@ -293,14 +280,8 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
             |builder, a| {
-                builder
-                    .available_algorithms
-                    .mac_c2s
-                    .insert(0, a.clone());
-                builder
-                    .available_algorithms
-                    .mac_s2c
-                    .insert(0, a);
+                builder.available_algorithms.mac_c2s.insert(0, a.clone());
+                builder.available_algorithms.mac_s2c.insert(0, a);
             },
         )
     }
@@ -313,12 +294,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| {
-                builder
-                    .available_algorithms
-                    .mac_c2s
-                    .insert(0, a)
-            },
+            |builder, a| builder.available_algorithms.mac_c2s.insert(0, a),
         )
     }
 
@@ -330,12 +306,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| {
-                builder
-                    .available_algorithms
-                    .mac_s2c
-                    .insert(0, a)
-            },
+            |builder, a| builder.available_algorithms.mac_s2c.insert(0, a),
         )
     }
 
@@ -352,10 +323,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
                     .available_algorithms
                     .compression_c2s
                     .insert(0, a.clone());
-                builder
-                    .available_algorithms
-                    .compression_s2c
-                    .insert(0, a);
+                builder.available_algorithms.compression_s2c.insert(0, a);
             },
         )
     }
@@ -368,12 +336,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| {
-                builder
-                    .available_algorithms
-                    .compression_c2s
-                    .insert(0, a)
-            },
+            |builder, a| builder.available_algorithms.compression_c2s.insert(0, a),
         )
     }
 
@@ -385,12 +348,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| {
-                builder
-                    .available_algorithms
-                    .compression_s2c
-                    .insert(0, a)
-            },
+            |builder, a| builder.available_algorithms.compression_s2c.insert(0, a),
         )
     }
 
@@ -415,10 +373,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     /// distribution function to determine the maximum value.
     /// If a number greater than the permissible number of extra blocks is returned, the maximum
     /// permissible number will be used.
-    pub fn padding_length_distribution(
-        self,
-        dist: Box<PaddingLengthDistribution>,
-    ) -> Self {
+    pub fn padding_length_distribution(self, dist: Box<PaddingLengthDistribution>) -> Self {
         Builder {
             padding_length_distribution: Some(Box::new(dist)),
             ..self

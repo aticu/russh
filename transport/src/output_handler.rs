@@ -4,8 +4,9 @@ use std::{borrow::Cow, fmt, io};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{
-    runtime_state::RuntimeState, version::VersionInformation,
     padding_length::{self, PaddingLengthDistribution},
+    runtime_state::RuntimeState,
+    version::VersionInformation,
     writer::WriterOutputStream,
 };
 
