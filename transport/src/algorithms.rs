@@ -25,17 +25,17 @@ pub(crate) struct AvailableAlgorithms {
     /// The available host key algorithms.
     pub(crate) host_key: Vec<Box<dyn HostKeyAlgorithm>>,
     /// The available encryption algorithms for client to server communication.
-    pub(crate) encryption_client_to_server: Vec<Box<dyn EncryptionAlgorithm>>,
+    pub(crate) encryption_c2s: Vec<Box<dyn EncryptionAlgorithm>>,
     /// The available encryption algorithms for server to client communication.
-    pub(crate) encryption_server_to_client: Vec<Box<dyn EncryptionAlgorithm>>,
+    pub(crate) encryption_s2c: Vec<Box<dyn EncryptionAlgorithm>>,
     /// The available MAC algorithms for client to server communication.
-    pub(crate) mac_client_to_server: Vec<Box<dyn MacAlgorithm>>,
+    pub(crate) mac_c2s: Vec<Box<dyn MacAlgorithm>>,
     /// The available MAC algorithms for server to client communication.
-    pub(crate) mac_server_to_client: Vec<Box<dyn MacAlgorithm>>,
+    pub(crate) mac_s2c: Vec<Box<dyn MacAlgorithm>>,
     /// The available compression algorithms for client to server communication.
-    pub(crate) compression_client_to_server: Vec<Box<dyn CompressionAlgorithm>>,
+    pub(crate) compression_c2s: Vec<Box<dyn CompressionAlgorithm>>,
     /// The available compression algorithms for server to client communication.
-    pub(crate) compression_server_to_client: Vec<Box<dyn CompressionAlgorithm>>,
+    pub(crate) compression_s2c: Vec<Box<dyn CompressionAlgorithm>>,
 }
 
 impl fmt::Debug for AvailableAlgorithms {
@@ -50,49 +50,49 @@ impl fmt::Debug for AvailableAlgorithms {
                 &self.host_key.iter().map(|a| a.name()).collect::<Vec<_>>(),
             )
             .field(
-                "encryption_client_to_server",
+                "encryption_c2s",
                 &self
-                    .encryption_client_to_server
+                    .encryption_c2s
                     .iter()
                     .map(|a| a.name())
                     .collect::<Vec<_>>(),
             )
             .field(
-                "encryption_server_to_client",
+                "encryption_s2c",
                 &self
-                    .encryption_server_to_client
+                    .encryption_s2c
                     .iter()
                     .map(|a| a.name())
                     .collect::<Vec<_>>(),
             )
             .field(
-                "mac_client_to_server",
+                "mac_c2s",
                 &self
-                    .mac_client_to_server
+                    .mac_c2s
                     .iter()
                     .map(|a| a.name())
                     .collect::<Vec<_>>(),
             )
             .field(
-                "mac_server_to_client",
+                "mac_s2c",
                 &self
-                    .mac_server_to_client
+                    .mac_s2c
                     .iter()
                     .map(|a| a.name())
                     .collect::<Vec<_>>(),
             )
             .field(
-                "compression_client_to_server",
+                "compression_c2s",
                 &self
-                    .compression_client_to_server
+                    .compression_c2s
                     .iter()
                     .map(|a| a.name())
                     .collect::<Vec<_>>(),
             )
             .field(
-                "compression_server_to_client",
+                "compression_s2c",
                 &self
-                    .compression_server_to_client
+                    .compression_s2c
                     .iter()
                     .map(|a| a.name())
                     .collect::<Vec<_>>(),
@@ -106,12 +106,12 @@ impl Default for AvailableAlgorithms {
         AvailableAlgorithms {
             kex: builtin::key_exchange_algorithms(),
             host_key: builtin::host_key_algorithms(),
-            encryption_client_to_server: builtin::encryption_algorithms(),
-            encryption_server_to_client: builtin::encryption_algorithms(),
-            mac_client_to_server: builtin::mac_algorithms(),
-            mac_server_to_client: builtin::mac_algorithms(),
-            compression_client_to_server: builtin::compression_algorithms(),
-            compression_server_to_client: builtin::compression_algorithms(),
+            encryption_c2s: builtin::encryption_algorithms(),
+            encryption_s2c: builtin::encryption_algorithms(),
+            mac_c2s: builtin::mac_algorithms(),
+            mac_s2c: builtin::mac_algorithms(),
+            compression_c2s: builtin::compression_algorithms(),
+            compression_s2c: builtin::compression_algorithms(),
         }
     }
 }
@@ -124,32 +124,32 @@ impl AvailableAlgorithms {
             .map(|a| a.as_basic_algorithm())
             .chain(self.host_key[..].iter().map(|a| a.as_basic_algorithm()))
             .chain(
-                self.encryption_client_to_server[..]
+                self.encryption_c2s[..]
                     .iter()
                     .map(|a| a.as_basic_algorithm()),
             )
             .chain(
-                self.encryption_server_to_client[..]
+                self.encryption_s2c[..]
                     .iter()
                     .map(|a| a.as_basic_algorithm()),
             )
             .chain(
-                self.mac_client_to_server[..]
+                self.mac_c2s[..]
                     .iter()
                     .map(|a| a.as_basic_algorithm()),
             )
             .chain(
-                self.mac_server_to_client[..]
+                self.mac_s2c[..]
                     .iter()
                     .map(|a| a.as_basic_algorithm()),
             )
             .chain(
-                self.compression_client_to_server[..]
+                self.compression_c2s[..]
                     .iter()
                     .map(|a| a.as_basic_algorithm()),
             )
             .chain(
-                self.compression_server_to_client[..]
+                self.compression_s2c[..]
                     .iter()
                     .map(|a| a.as_basic_algorithm()),
             );
@@ -166,32 +166,32 @@ impl AvailableAlgorithms {
             Some(AlgorithmRole(AlgorithmCategory::KeyExchange, None))
         } else if self.host_key.is_empty() {
             Some(AlgorithmRole(AlgorithmCategory::HostKey, None))
-        } else if self.encryption_client_to_server.is_empty() {
+        } else if self.encryption_c2s.is_empty() {
             Some(AlgorithmRole(
                 AlgorithmCategory::Encryption,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self.encryption_server_to_client.is_empty() {
+        } else if self.encryption_s2c.is_empty() {
             Some(AlgorithmRole(
                 AlgorithmCategory::Encryption,
                 Some(AlgorithmDirection::ServerToClient),
             ))
-        } else if self.mac_client_to_server.is_empty() {
+        } else if self.mac_c2s.is_empty() {
             Some(AlgorithmRole(
                 AlgorithmCategory::Mac,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self.mac_server_to_client.is_empty() {
+        } else if self.mac_s2c.is_empty() {
             Some(AlgorithmRole(
                 AlgorithmCategory::Mac,
                 Some(AlgorithmDirection::ServerToClient),
             ))
-        } else if self.compression_client_to_server.is_empty() {
+        } else if self.compression_c2s.is_empty() {
             Some(AlgorithmRole(
                 AlgorithmCategory::Compression,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self.compression_server_to_client.is_empty() {
+        } else if self.compression_s2c.is_empty() {
             Some(AlgorithmRole(
                 AlgorithmCategory::Compression,
                 Some(AlgorithmDirection::ServerToClient),
@@ -204,7 +204,7 @@ impl AvailableAlgorithms {
     /// Returns the name of the first algorithm role with a missing required "none" algorithm.
     pub(crate) fn required_none_missing(&self) -> Option<AlgorithmRole> {
         if self
-            .encryption_client_to_server
+            .encryption_c2s
             .iter()
             .all(|a| a.name() != "none")
         {
@@ -213,7 +213,7 @@ impl AvailableAlgorithms {
                 Some(AlgorithmDirection::ClientToServer),
             ))
         } else if self
-            .encryption_server_to_client
+            .encryption_s2c
             .iter()
             .all(|a| a.name() != "none")
         {
@@ -221,18 +221,18 @@ impl AvailableAlgorithms {
                 AlgorithmCategory::Encryption,
                 Some(AlgorithmDirection::ServerToClient),
             ))
-        } else if self.mac_client_to_server.iter().all(|a| a.name() != "none") {
+        } else if self.mac_c2s.iter().all(|a| a.name() != "none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Mac,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self.mac_server_to_client.iter().all(|a| a.name() != "none") {
+        } else if self.mac_s2c.iter().all(|a| a.name() != "none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Mac,
                 Some(AlgorithmDirection::ServerToClient),
             ))
         } else if self
-            .compression_client_to_server
+            .compression_c2s
             .iter()
             .all(|a| a.name() != "none")
         {
@@ -241,7 +241,7 @@ impl AvailableAlgorithms {
                 Some(AlgorithmDirection::ClientToServer),
             ))
         } else if self
-            .compression_server_to_client
+            .compression_s2c
             .iter()
             .all(|a| a.name() != "none")
         {
@@ -258,12 +258,12 @@ impl AvailableAlgorithms {
     pub(crate) fn clear(&mut self) {
         self.kex.clear();
         self.host_key.clear();
-        self.encryption_client_to_server.clear();
-        self.encryption_server_to_client.clear();
-        self.mac_client_to_server.clear();
-        self.mac_server_to_client.clear();
-        self.compression_client_to_server.clear();
-        self.compression_server_to_client.clear();
+        self.encryption_c2s.clear();
+        self.encryption_s2c.clear();
+        self.mac_c2s.clear();
+        self.mac_s2c.clear();
+        self.compression_c2s.clear();
+        self.compression_s2c.clear();
     }
 
     /// Loads a host key into the given algorithm.
@@ -300,20 +300,20 @@ impl AvailableAlgorithms {
 
     /// Unloads the keys for the given chosen algorithms.
     pub(crate) fn unload_algorithm_keys(&mut self, chosen_algorithms: &ChosenAlgorithms) {
-        let encryption_client_to_server = self
-            .encryption_client_to_server
+        let encryption_c2s = self
+            .encryption_c2s
             .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.encryption_client_to_server)
+            .find(|a| a.name() == chosen_algorithms.encryption_c2s)
             .expect("chosen algorithm exists in the available algorithms");
-        let encryption_server_to_client = self
-            .encryption_server_to_client
+        let encryption_s2c = self
+            .encryption_s2c
             .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.encryption_server_to_client)
+            .find(|a| a.name() == chosen_algorithms.encryption_s2c)
             .expect("chosen algorithm exists in the available algorithms");
-        let mac_client_to_server = if let Some(chosen_alg) = chosen_algorithms.mac_client_to_server
+        let mac_c2s = if let Some(chosen_alg) = chosen_algorithms.mac_c2s
         {
             Some(
-                self.mac_client_to_server
+                self.mac_c2s
                     .iter_mut()
                     .find(|a| a.name() == chosen_alg)
                     .expect("chosen algorithm exists in the available algorithms"),
@@ -321,10 +321,10 @@ impl AvailableAlgorithms {
         } else {
             None
         };
-        let mac_server_to_client = if let Some(chosen_alg) = chosen_algorithms.mac_server_to_client
+        let mac_s2c = if let Some(chosen_alg) = chosen_algorithms.mac_s2c
         {
             Some(
-                self.mac_server_to_client
+                self.mac_s2c
                     .iter_mut()
                     .find(|a| a.name() == chosen_alg)
                     .expect("chosen algorithm exists in the available algorithms"),
@@ -333,13 +333,13 @@ impl AvailableAlgorithms {
             None
         };
 
-        encryption_client_to_server.unload_key();
-        encryption_server_to_client.unload_key();
-        if let Some(mac_client_to_server) = mac_client_to_server {
-            mac_client_to_server.unload_key();
+        encryption_c2s.unload_key();
+        encryption_s2c.unload_key();
+        if let Some(mac_c2s) = mac_c2s {
+            mac_c2s.unload_key();
         }
-        if let Some(mac_server_to_client) = mac_server_to_client {
-            mac_server_to_client.unload_key();
+        if let Some(mac_s2c) = mac_s2c {
+            mac_s2c.unload_key();
         }
     }
 
@@ -352,20 +352,20 @@ impl AvailableAlgorithms {
         exchange_hash: &[u8],
         session_id: &[u8],
     ) {
-        let encryption_client_to_server = self
-            .encryption_client_to_server
+        let encryption_c2s = self
+            .encryption_c2s
             .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.encryption_client_to_server)
+            .find(|a| a.name() == chosen_algorithms.encryption_c2s)
             .expect("chosen algorithm exists in the available algorithms");
-        let encryption_server_to_client = self
-            .encryption_server_to_client
+        let encryption_s2c = self
+            .encryption_s2c
             .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.encryption_server_to_client)
+            .find(|a| a.name() == chosen_algorithms.encryption_s2c)
             .expect("chosen algorithm exists in the available algorithms");
-        let mac_client_to_server = if let Some(chosen_alg) = chosen_algorithms.mac_client_to_server
+        let mac_c2s = if let Some(chosen_alg) = chosen_algorithms.mac_c2s
         {
             Some(
-                self.mac_client_to_server
+                self.mac_c2s
                     .iter_mut()
                     .find(|a| a.name() == chosen_alg)
                     .expect("chosen algorithm exists in the available algorithms"),
@@ -373,10 +373,10 @@ impl AvailableAlgorithms {
         } else {
             None
         };
-        let mac_server_to_client = if let Some(chosen_alg) = chosen_algorithms.mac_server_to_client
+        let mac_s2c = if let Some(chosen_alg) = chosen_algorithms.mac_s2c
         {
             Some(
-                self.mac_server_to_client
+                self.mac_s2c
                     .iter_mut()
                     .find(|a| a.name() == chosen_alg)
                     .expect("chosen algorithm exists in the available algorithms"),
@@ -385,49 +385,49 @@ impl AvailableAlgorithms {
             None
         };
 
-        let mut encryption_client_to_server_iv = vec![0; encryption_client_to_server.iv_size()];
-        let mut encryption_server_to_client_iv = vec![0; encryption_server_to_client.iv_size()];
-        let mut encryption_client_to_server_key = vec![0; encryption_client_to_server.key_size()];
-        let mut encryption_server_to_client_key = vec![0; encryption_server_to_client.key_size()];
-        let mut mac_client_to_server_key = vec![
+        let mut encryption_c2s_iv = vec![0; encryption_c2s.iv_size()];
+        let mut encryption_s2c_iv = vec![0; encryption_s2c.iv_size()];
+        let mut encryption_c2s_key = vec![0; encryption_c2s.key_size()];
+        let mut encryption_s2c_key = vec![0; encryption_s2c.key_size()];
+        let mut mac_c2s_key = vec![
             0;
-            mac_client_to_server
+            mac_c2s
                 .as_ref()
                 .map(|a| a.key_size())
                 .unwrap_or(0)
         ];
-        let mut mac_server_to_client_key = vec![
+        let mut mac_s2c_key = vec![
             0;
-            mac_server_to_client
+            mac_s2c
                 .as_ref()
                 .map(|a| a.key_size())
                 .unwrap_or(0)
         ];
 
         let mut keys = key_expansion::Keys {
-            encryption_client_to_server_iv: &mut encryption_client_to_server_iv,
-            encryption_server_to_client_iv: &mut encryption_server_to_client_iv,
-            encryption_client_to_server_key: &mut encryption_client_to_server_key,
-            encryption_server_to_client_key: &mut encryption_server_to_client_key,
-            mac_client_to_server_key: &mut mac_client_to_server_key,
-            mac_server_to_client_key: &mut mac_server_to_client_key,
+            encryption_c2s_iv: &mut encryption_c2s_iv,
+            encryption_s2c_iv: &mut encryption_s2c_iv,
+            encryption_c2s_key: &mut encryption_c2s_key,
+            encryption_s2c_key: &mut encryption_s2c_key,
+            mac_c2s_key: &mut mac_c2s_key,
+            mac_s2c_key: &mut mac_s2c_key,
         };
 
         key_expansion::expand_keys(&mut keys, hash_fn, shared_secret, exchange_hash, session_id);
 
-        encryption_client_to_server.load_key(
-            keys.encryption_client_to_server_iv,
-            keys.encryption_client_to_server_key,
+        encryption_c2s.load_key(
+            keys.encryption_c2s_iv,
+            keys.encryption_c2s_key,
         );
-        encryption_server_to_client.load_key(
-            keys.encryption_server_to_client_iv,
-            keys.encryption_server_to_client_key,
+        encryption_s2c.load_key(
+            keys.encryption_s2c_iv,
+            keys.encryption_s2c_key,
         );
-        if let Some(mac_client_to_server) = mac_client_to_server {
-            mac_client_to_server.load_key(keys.mac_client_to_server_key);
+        if let Some(mac_c2s) = mac_c2s {
+            mac_c2s.load_key(keys.mac_c2s_key);
         }
-        if let Some(mac_server_to_client) = mac_server_to_client {
-            mac_server_to_client.load_key(keys.mac_server_to_client_key);
+        if let Some(mac_s2c) = mac_s2c {
+            mac_s2c.load_key(keys.mac_s2c_key);
         }
     }
 }
@@ -436,29 +436,29 @@ impl AvailableAlgorithms {
 #[derive(Debug)]
 pub(crate) struct ChosenAlgorithms {
     /// The encryption algorithm for client to server communication.
-    pub(crate) encryption_client_to_server: &'static str,
+    pub(crate) encryption_c2s: &'static str,
     /// The encryption algorithm for server to client communication.
-    pub(crate) encryption_server_to_client: &'static str,
+    pub(crate) encryption_s2c: &'static str,
     /// The MAC algorithm for client to server communication.
-    pub(crate) mac_client_to_server: Option<&'static str>,
+    pub(crate) mac_c2s: Option<&'static str>,
     /// The MAC algorithm for server to client communication.
-    pub(crate) mac_server_to_client: Option<&'static str>,
+    pub(crate) mac_s2c: Option<&'static str>,
     /// The compression algorithm for client to server communication.
-    pub(crate) compression_client_to_server: &'static str,
+    pub(crate) compression_c2s: &'static str,
     /// The compression algorithm for server to client communication.
-    pub(crate) compression_server_to_client: &'static str,
+    pub(crate) compression_s2c: &'static str,
 }
 
 impl ChosenAlgorithms {
     /// Chooses the algorithms to use at the beginning of the connection.
     pub(crate) fn new() -> ChosenAlgorithms {
         ChosenAlgorithms {
-            encryption_client_to_server: "none",
-            encryption_server_to_client: "none",
-            mac_client_to_server: Some("none"),
-            mac_server_to_client: Some("none"),
-            compression_client_to_server: "none",
-            compression_server_to_client: "none",
+            encryption_c2s: "none",
+            encryption_s2c: "none",
+            mac_c2s: Some("none"),
+            mac_s2c: Some("none"),
+            compression_c2s: "none",
+            compression_s2c: "none",
         }
     }
 
@@ -472,14 +472,14 @@ impl ChosenAlgorithms {
         // well.
         let encryption_algorithm = match connection_role {
             ConnectionRole::Client => algorithms
-                .encryption_client_to_server
+                .encryption_c2s
                 .iter_mut()
-                .find(|a| a.name() == self.encryption_client_to_server)
+                .find(|a| a.name() == self.encryption_c2s)
                 .map(|a| &mut **a)?,
             ConnectionRole::Server => algorithms
-                .encryption_server_to_client
+                .encryption_s2c
                 .iter_mut()
-                .find(|a| a.name() == self.encryption_server_to_client)
+                .find(|a| a.name() == self.encryption_s2c)
                 .map(|a| &mut **a)?,
         };
 
@@ -491,18 +491,18 @@ impl ChosenAlgorithms {
                 mac: if mac_needed {
                     Some(
                         algorithms
-                            .mac_client_to_server
+                            .mac_c2s
                             .iter_mut()
-                            .find(|a| Some(a.name()) == self.mac_client_to_server)
+                            .find(|a| Some(a.name()) == self.mac_c2s)
                             .map(|a| &mut **a)?,
                     )
                 } else {
                     None
                 },
                 compression: algorithms
-                    .compression_client_to_server
+                    .compression_c2s
                     .iter_mut()
-                    .find(|a| a.name() == self.compression_client_to_server)
+                    .find(|a| a.name() == self.compression_c2s)
                     .map(|a| &mut **a)?,
             },
             ConnectionRole::Server => PacketAlgorithms {
@@ -510,18 +510,18 @@ impl ChosenAlgorithms {
                 mac: if mac_needed {
                     Some(
                         algorithms
-                            .mac_server_to_client
+                            .mac_s2c
                             .iter_mut()
-                            .find(|a| Some(a.name()) == self.mac_server_to_client)
+                            .find(|a| Some(a.name()) == self.mac_s2c)
                             .map(|a| &mut **a)?,
                     )
                 } else {
                     None
                 },
                 compression: algorithms
-                    .compression_server_to_client
+                    .compression_s2c
                     .iter_mut()
-                    .find(|a| a.name() == self.compression_server_to_client)
+                    .find(|a| a.name() == self.compression_s2c)
                     .map(|a| &mut **a)?,
             },
         })
@@ -536,17 +536,17 @@ pub(crate) struct AlgorithmList<'a> {
     /// The host key algorithms available.
     pub(crate) host_key: Vec<Cow<'a, str>>,
     /// The encryption algorithms available for client to server communication.
-    pub(crate) encryption_client_to_server: Vec<Cow<'a, str>>,
+    pub(crate) encryption_c2s: Vec<Cow<'a, str>>,
     /// The encryption algorithms available for server to client communication.
-    pub(crate) encryption_server_to_client: Vec<Cow<'a, str>>,
+    pub(crate) encryption_s2c: Vec<Cow<'a, str>>,
     /// The MAC algorithms available for client to server communication.
-    pub(crate) mac_client_to_server: Vec<Cow<'a, str>>,
+    pub(crate) mac_c2s: Vec<Cow<'a, str>>,
     /// The MAC algorithms available for server to client communication.
-    pub(crate) mac_server_to_client: Vec<Cow<'a, str>>,
+    pub(crate) mac_s2c: Vec<Cow<'a, str>>,
     /// The compression algorithms available for client to server communication.
-    pub(crate) compression_client_to_server: Vec<Cow<'a, str>>,
+    pub(crate) compression_c2s: Vec<Cow<'a, str>>,
     /// The compression algorithms available for server to client communication.
-    pub(crate) compression_server_to_client: Vec<Cow<'a, str>>,
+    pub(crate) compression_s2c: Vec<Cow<'a, str>>,
 }
 
 impl AlgorithmList<'static> {
@@ -566,37 +566,37 @@ impl AlgorithmList<'static> {
                 .iter()
                 .map(|a| Cow::Borrowed(a.name()))
                 .collect(),
-            encryption_client_to_server: available_algorithms
-                .encryption_client_to_server
+            encryption_c2s: available_algorithms
+                .encryption_c2s
                 .iter()
                 .filter(|a| allow_none_algorithms || a.name() != "none")
                 .map(|a| Cow::Borrowed(a.name()))
                 .collect(),
-            encryption_server_to_client: available_algorithms
-                .encryption_server_to_client
+            encryption_s2c: available_algorithms
+                .encryption_s2c
                 .iter()
                 .filter(|a| allow_none_algorithms || a.name() != "none")
                 .map(|a| Cow::Borrowed(a.name()))
                 .collect(),
-            mac_client_to_server: available_algorithms
-                .mac_client_to_server
+            mac_c2s: available_algorithms
+                .mac_c2s
                 .iter()
                 .filter(|a| allow_none_algorithms || a.name() != "none")
                 .map(|a| Cow::Borrowed(a.name()))
                 .collect(),
-            mac_server_to_client: available_algorithms
-                .mac_server_to_client
+            mac_s2c: available_algorithms
+                .mac_s2c
                 .iter()
                 .filter(|a| allow_none_algorithms || a.name() != "none")
                 .map(|a| Cow::Borrowed(a.name()))
                 .collect(),
-            compression_client_to_server: available_algorithms
-                .compression_client_to_server
+            compression_c2s: available_algorithms
+                .compression_c2s
                 .iter()
                 .map(|a| Cow::Borrowed(a.name()))
                 .collect(),
-            compression_server_to_client: available_algorithms
-                .compression_server_to_client
+            compression_s2c: available_algorithms
+                .compression_s2c
                 .iter()
                 .map(|a| Cow::Borrowed(a.name()))
                 .collect(),

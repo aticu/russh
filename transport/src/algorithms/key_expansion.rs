@@ -6,17 +6,17 @@ use russh_common::{algorithms::KeyExchangeHashFunction, writer_primitives::write
 /// References the buffers where the keys are generated.
 pub(super) struct Keys<'a> {
     /// The encryption IV used for client to server communication.
-    pub(super) encryption_client_to_server_iv: &'a mut [u8],
+    pub(super) encryption_c2s_iv: &'a mut [u8],
     /// The encryption IV used for server to client communication.
-    pub(super) encryption_server_to_client_iv: &'a mut [u8],
+    pub(super) encryption_s2c_iv: &'a mut [u8],
     /// The encryption key used for client to server communication.
-    pub(super) encryption_client_to_server_key: &'a mut [u8],
+    pub(super) encryption_c2s_key: &'a mut [u8],
     /// The encryption key used for server to client communication.
-    pub(super) encryption_server_to_client_key: &'a mut [u8],
+    pub(super) encryption_s2c_key: &'a mut [u8],
     /// The mac key used for client to server communication.
-    pub(super) mac_client_to_server_key: &'a mut [u8],
+    pub(super) mac_c2s_key: &'a mut [u8],
     /// The mac key used for server to client communication.
-    pub(super) mac_server_to_client_key: &'a mut [u8],
+    pub(super) mac_s2c_key: &'a mut [u8],
 }
 
 pub(super) fn expand_keys(
@@ -65,12 +65,12 @@ pub(super) fn expand_keys(
         slice.copy_from_slice(&vec[..slice.len()]);
     };
 
-    expand_into_slice(keys.encryption_client_to_server_iv, b'A');
-    expand_into_slice(keys.encryption_server_to_client_iv, b'B');
-    expand_into_slice(keys.encryption_client_to_server_key, b'C');
-    expand_into_slice(keys.encryption_server_to_client_key, b'D');
-    expand_into_slice(keys.mac_client_to_server_key, b'E');
-    expand_into_slice(keys.mac_server_to_client_key, b'F');
+    expand_into_slice(keys.encryption_c2s_iv, b'A');
+    expand_into_slice(keys.encryption_s2c_iv, b'B');
+    expand_into_slice(keys.encryption_c2s_key, b'C');
+    expand_into_slice(keys.encryption_s2c_key, b'D');
+    expand_into_slice(keys.mac_c2s_key, b'E');
+    expand_into_slice(keys.mac_s2c_key, b'F');
 }
 
 /// Expands the given key to the needed size.

@@ -240,11 +240,11 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .encryption_client_to_server
+                    .encryption_c2s
                     .insert(0, a.clone());
                 builder
                     .available_algorithms
-                    .encryption_server_to_client
+                    .encryption_s2c
                     .insert(0, a);
             },
         )
@@ -261,7 +261,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .encryption_client_to_server
+                    .encryption_c2s
                     .insert(0, a)
             },
         )
@@ -278,7 +278,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .encryption_server_to_client
+                    .encryption_s2c
                     .insert(0, a)
             },
         )
@@ -295,11 +295,11 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .mac_client_to_server
+                    .mac_c2s
                     .insert(0, a.clone());
                 builder
                     .available_algorithms
-                    .mac_server_to_client
+                    .mac_s2c
                     .insert(0, a);
             },
         )
@@ -316,7 +316,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .mac_client_to_server
+                    .mac_c2s
                     .insert(0, a)
             },
         )
@@ -333,7 +333,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .mac_server_to_client
+                    .mac_s2c
                     .insert(0, a)
             },
         )
@@ -350,11 +350,11 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .compression_client_to_server
+                    .compression_c2s
                     .insert(0, a.clone());
                 builder
                     .available_algorithms
-                    .compression_server_to_client
+                    .compression_s2c
                     .insert(0, a);
             },
         )
@@ -371,7 +371,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .compression_client_to_server
+                    .compression_c2s
                     .insert(0, a)
             },
         )
@@ -388,7 +388,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |builder, a| {
                 builder
                     .available_algorithms
-                    .compression_server_to_client
+                    .compression_s2c
                     .insert(0, a)
             },
         )

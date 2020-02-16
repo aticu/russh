@@ -133,40 +133,40 @@ pub(in crate::protocol) fn parse_kexinit(input: &[u8]) -> Result<KexInitPacket, 
     let (rest, cookie) = take(16usize)(rest)?;
     let (rest, kex) = parse_name_list(rest)?;
     let (rest, host_key) = parse_name_list(rest)?;
-    let (rest, encryption_client_to_server) = parse_name_list(rest)?;
-    let (rest, encryption_server_to_client) = parse_name_list(rest)?;
-    let (rest, mac_client_to_server) = parse_name_list(rest)?;
-    let (rest, mac_server_to_client) = parse_name_list(rest)?;
-    let (rest, compression_client_to_server) = parse_name_list(rest)?;
-    let (rest, compression_server_to_client) = parse_name_list(rest)?;
-    let (rest, _languages_client_to_server) = parse_name_list(rest)?;
-    let (rest, _languages_server_to_client) = parse_name_list(rest)?;
+    let (rest, encryption_c2s) = parse_name_list(rest)?;
+    let (rest, encryption_s2c) = parse_name_list(rest)?;
+    let (rest, mac_c2s) = parse_name_list(rest)?;
+    let (rest, mac_s2c) = parse_name_list(rest)?;
+    let (rest, compression_c2s) = parse_name_list(rest)?;
+    let (rest, compression_s2c) = parse_name_list(rest)?;
+    let (rest, _languages_c2s) = parse_name_list(rest)?;
+    let (rest, _languages_s2c) = parse_name_list(rest)?;
     let (rest, first_kex_packet_follows) = parse_boolean(rest)?;
     let _ = parse_uint32(rest)?;
 
     let kex = kex.into_iter().map(|s| Cow::Borrowed(s)).collect();
     let host_key = host_key.into_iter().map(|s| Cow::Borrowed(s)).collect();
-    let encryption_client_to_server = encryption_client_to_server
+    let encryption_c2s = encryption_c2s
         .into_iter()
         .map(|s| Cow::Borrowed(s))
         .collect();
-    let encryption_server_to_client = encryption_server_to_client
+    let encryption_s2c = encryption_s2c
         .into_iter()
         .map(|s| Cow::Borrowed(s))
         .collect();
-    let mac_client_to_server = mac_client_to_server
+    let mac_c2s = mac_c2s
         .into_iter()
         .map(|s| Cow::Borrowed(s))
         .collect();
-    let mac_server_to_client = mac_server_to_client
+    let mac_s2c = mac_s2c
         .into_iter()
         .map(|s| Cow::Borrowed(s))
         .collect();
-    let compression_client_to_server = compression_client_to_server
+    let compression_c2s = compression_c2s
         .into_iter()
         .map(|s| Cow::Borrowed(s))
         .collect();
-    let compression_server_to_client = compression_server_to_client
+    let compression_s2c = compression_s2c
         .into_iter()
         .map(|s| Cow::Borrowed(s))
         .collect();
@@ -182,12 +182,12 @@ pub(in crate::protocol) fn parse_kexinit(input: &[u8]) -> Result<KexInitPacket, 
         algorithm_list: AlgorithmList {
             kex,
             host_key,
-            encryption_client_to_server,
-            encryption_server_to_client,
-            mac_client_to_server,
-            mac_server_to_client,
-            compression_client_to_server,
-            compression_server_to_client,
+            encryption_c2s,
+            encryption_s2c,
+            mac_c2s,
+            mac_s2c,
+            compression_c2s,
+            compression_s2c,
         },
         first_kex_packet_follows,
     })
@@ -203,12 +203,12 @@ pub(in crate::protocol) fn write_kexinit(
 
     write_name_list(&packet.algorithm_list.kex, output)?;
     write_name_list(&packet.algorithm_list.host_key, output)?;
-    write_name_list(&packet.algorithm_list.encryption_client_to_server, output)?;
-    write_name_list(&packet.algorithm_list.encryption_server_to_client, output)?;
-    write_name_list(&packet.algorithm_list.mac_client_to_server, output)?;
-    write_name_list(&packet.algorithm_list.mac_server_to_client, output)?;
-    write_name_list(&packet.algorithm_list.compression_client_to_server, output)?;
-    write_name_list(&packet.algorithm_list.compression_server_to_client, output)?;
+    write_name_list(&packet.algorithm_list.encryption_c2s, output)?;
+    write_name_list(&packet.algorithm_list.encryption_s2c, output)?;
+    write_name_list(&packet.algorithm_list.mac_c2s, output)?;
+    write_name_list(&packet.algorithm_list.mac_s2c, output)?;
+    write_name_list(&packet.algorithm_list.compression_c2s, output)?;
+    write_name_list(&packet.algorithm_list.compression_s2c, output)?;
 
     // TODO: deal with languages
     let language_list: &[&'static str] = &[];
@@ -326,12 +326,12 @@ mod tests {
                 "diffie-hellman-group14-sha1".into(),
             ],
             host_key: vec!["ssh-dss".into(), "ssh-rsa".into()],
-            encryption_client_to_server: vec!["aes128-cbc".into(), "none".into()],
-            encryption_server_to_client: vec!["aes128-cbc".into(), "none".into()],
-            mac_client_to_server: vec!["hmac-sha1".into(), "none".into()],
-            mac_server_to_client: vec!["hmac-sha1".into(), "none".into()],
-            compression_client_to_server: vec!["none".into(), "zlib".into()],
-            compression_server_to_client: vec!["none".into()],
+            encryption_c2s: vec!["aes128-cbc".into(), "none".into()],
+            encryption_s2c: vec!["aes128-cbc".into(), "none".into()],
+            mac_c2s: vec!["hmac-sha1".into(), "none".into()],
+            mac_s2c: vec!["hmac-sha1".into(), "none".into()],
+            compression_c2s: vec!["none".into(), "zlib".into()],
+            compression_s2c: vec!["none".into()],
         };
 
         let packet = KexInitPacket {

@@ -337,26 +337,26 @@ fn negotiate_algorithms<'a>(
     let own_role = runtime_state.connection_role();
     let available_algorithms = runtime_state.available_algorithms();
 
-    let encryption_client_to_server = negotiate_basic_algorithm(
-        &own_list.encryption_client_to_server,
-        &other_list.encryption_client_to_server,
+    let encryption_c2s = negotiate_basic_algorithm(
+        &own_list.encryption_c2s,
+        &other_list.encryption_c2s,
         own_role,
         AlgorithmRole(
             AlgorithmCategory::Encryption,
             Some(AlgorithmDirection::ClientToServer),
         ),
     )?;
-    let mac_client_to_server_needed = available_algorithms
-        .encryption_client_to_server
+    let mac_c2s_needed = available_algorithms
+        .encryption_c2s
         .iter()
-        .find(|alg| alg.name() == encryption_client_to_server)
+        .find(|alg| alg.name() == encryption_c2s)
         .expect("chosen algorithm is available")
         .mac_size()
         .is_none();
-    let mac_client_to_server = if mac_client_to_server_needed {
+    let mac_c2s = if mac_c2s_needed {
         Some(negotiate_basic_algorithm(
-            &own_list.mac_client_to_server,
-            &other_list.mac_client_to_server,
+            &own_list.mac_c2s,
+            &other_list.mac_c2s,
             own_role,
             AlgorithmRole(
                 AlgorithmCategory::Mac,
@@ -366,9 +366,9 @@ fn negotiate_algorithms<'a>(
     } else {
         None
     };
-    let compression_client_to_server = negotiate_basic_algorithm(
-        &own_list.compression_client_to_server,
-        &other_list.compression_client_to_server,
+    let compression_c2s = negotiate_basic_algorithm(
+        &own_list.compression_c2s,
+        &other_list.compression_c2s,
         own_role,
         AlgorithmRole(
             AlgorithmCategory::Compression,
@@ -376,26 +376,26 @@ fn negotiate_algorithms<'a>(
         ),
     )?;
 
-    let encryption_server_to_client = negotiate_basic_algorithm(
-        &own_list.encryption_server_to_client,
-        &other_list.encryption_server_to_client,
+    let encryption_s2c = negotiate_basic_algorithm(
+        &own_list.encryption_s2c,
+        &other_list.encryption_s2c,
         own_role,
         AlgorithmRole(
             AlgorithmCategory::Encryption,
             Some(AlgorithmDirection::ServerToClient),
         ),
     )?;
-    let mac_server_to_client_needed = available_algorithms
-        .encryption_server_to_client
+    let mac_s2c_needed = available_algorithms
+        .encryption_s2c
         .iter()
-        .find(|alg| alg.name() == encryption_server_to_client)
+        .find(|alg| alg.name() == encryption_s2c)
         .expect("chosen algorithm is available")
         .mac_size()
         .is_none();
-    let mac_server_to_client = if mac_server_to_client_needed {
+    let mac_s2c = if mac_s2c_needed {
         Some(negotiate_basic_algorithm(
-            &own_list.mac_server_to_client,
-            &other_list.mac_server_to_client,
+            &own_list.mac_s2c,
+            &other_list.mac_s2c,
             own_role,
             AlgorithmRole(
                 AlgorithmCategory::Mac,
@@ -405,9 +405,9 @@ fn negotiate_algorithms<'a>(
     } else {
         None
     };
-    let compression_server_to_client = negotiate_basic_algorithm(
-        &own_list.compression_server_to_client,
-        &other_list.compression_server_to_client,
+    let compression_s2c = negotiate_basic_algorithm(
+        &own_list.compression_s2c,
+        &other_list.compression_s2c,
         own_role,
         AlgorithmRole(
             AlgorithmCategory::Compression,
@@ -425,12 +425,12 @@ fn negotiate_algorithms<'a>(
     )?;
 
     let chosen_algorithms = ChosenAlgorithms {
-        encryption_client_to_server,
-        encryption_server_to_client,
-        mac_client_to_server,
-        mac_server_to_client,
-        compression_client_to_server,
-        compression_server_to_client,
+        encryption_c2s,
+        encryption_s2c,
+        mac_c2s,
+        mac_s2c,
+        compression_c2s,
+        compression_s2c,
     };
 
     let (kex, host_key) = runtime_state
