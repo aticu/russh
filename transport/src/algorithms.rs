@@ -9,7 +9,7 @@ use russh_common::{
     },
     ConnectionRole,
 };
-use std::{borrow::Cow, fmt};
+use std::borrow::Cow;
 
 use crate::errors::{InvalidAlgorithmError, LoadHostKeyError};
 
@@ -19,6 +19,7 @@ pub(crate) mod builtin;
 pub(crate) mod helpers;
 
 /// Contains the algorithms available for communication.
+#[derive(Debug)]
 pub(crate) struct AvailableAlgorithms {
     /// The available key exchange algorithms.
     pub(crate) kex: Vec<Box<dyn KeyExchangeAlgorithm>>,
@@ -36,61 +37,6 @@ pub(crate) struct AvailableAlgorithms {
     pub(crate) compression_c2s: Vec<Box<dyn CompressionAlgorithm>>,
     /// The available compression algorithms for server to client communication.
     pub(crate) compression_s2c: Vec<Box<dyn CompressionAlgorithm>>,
-}
-
-impl fmt::Debug for AvailableAlgorithms {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("AvailableAlgorithms")
-            .field(
-                "kex",
-                &self.kex.iter().map(|a| a.name()).collect::<Vec<_>>(),
-            )
-            .field(
-                "host_key",
-                &self.host_key.iter().map(|a| a.name()).collect::<Vec<_>>(),
-            )
-            .field(
-                "encryption_c2s",
-                &self
-                    .encryption_c2s
-                    .iter()
-                    .map(|a| a.name())
-                    .collect::<Vec<_>>(),
-            )
-            .field(
-                "encryption_s2c",
-                &self
-                    .encryption_s2c
-                    .iter()
-                    .map(|a| a.name())
-                    .collect::<Vec<_>>(),
-            )
-            .field(
-                "mac_c2s",
-                &self.mac_c2s.iter().map(|a| a.name()).collect::<Vec<_>>(),
-            )
-            .field(
-                "mac_s2c",
-                &self.mac_s2c.iter().map(|a| a.name()).collect::<Vec<_>>(),
-            )
-            .field(
-                "compression_c2s",
-                &self
-                    .compression_c2s
-                    .iter()
-                    .map(|a| a.name())
-                    .collect::<Vec<_>>(),
-            )
-            .field(
-                "compression_s2c",
-                &self
-                    .compression_s2c
-                    .iter()
-                    .map(|a| a.name())
-                    .collect::<Vec<_>>(),
-            )
-            .finish()
-    }
 }
 
 impl Default for AvailableAlgorithms {

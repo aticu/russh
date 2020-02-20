@@ -564,3 +564,29 @@ pub trait CompressionAlgorithm: Algorithm {
         data: Cow<'data, [u8]>,
     ) -> Result<Cow<'data, [u8]>, Box<dyn Error>>;
 }
+
+impl fmt::Debug for dyn Algorithm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+macro_rules! impl_debug {
+    ($($alg:ident),*) => {
+        $(
+            impl fmt::Debug for dyn $alg {
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    write!(f, "{}", self.as_basic_algorithm().name())
+                }
+            }
+        )*
+    }
+}
+
+impl_debug! {
+    KeyExchangeAlgorithm,
+    HostKeyAlgorithm,
+    EncryptionAlgorithm,
+    MacAlgorithm,
+    CompressionAlgorithm
+}
