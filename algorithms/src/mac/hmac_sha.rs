@@ -70,7 +70,7 @@ macro_rules! impl_hmac_sha {
         }
 
         impl MacAlgorithm for $name {
-            fn as_basic_algorithm(&self) -> &dyn Algorithm {
+            fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
                 self
             }
 

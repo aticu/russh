@@ -36,7 +36,7 @@ impl Algorithm for None {
 }
 
 impl CompressionAlgorithm for None {
-    fn as_basic_algorithm(&self) -> &dyn Algorithm {
+    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
         self
     }
 

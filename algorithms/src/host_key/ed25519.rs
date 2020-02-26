@@ -73,7 +73,7 @@ impl Algorithm for Ed25519 {
 }
 
 impl HostKeyAlgorithm for Ed25519 {
-    fn as_basic_algorithm(&self) -> &dyn Algorithm {
+    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
         self
     }
 

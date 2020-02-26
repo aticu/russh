@@ -59,7 +59,7 @@ macro_rules! impl_aes_ctr {
         }
 
         impl EncryptionAlgorithm for $name {
-            fn as_basic_algorithm(&self) -> &dyn Algorithm {
+            fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
                 self
             }
 

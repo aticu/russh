@@ -50,7 +50,7 @@ impl Algorithm for None {
 }
 
 impl EncryptionAlgorithm for None {
-    fn as_basic_algorithm(&self) -> &dyn Algorithm {
+    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
         self
     }
 

@@ -52,7 +52,7 @@ impl Algorithm for Curve25519Sha256 {
 }
 
 impl KeyExchangeAlgorithm for Curve25519Sha256 {
-    fn as_basic_algorithm(&self) -> &dyn Algorithm {
+    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
         self
     }
 

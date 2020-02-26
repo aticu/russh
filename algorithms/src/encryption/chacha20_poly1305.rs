@@ -90,7 +90,7 @@ impl Algorithm for ChaCha20Poly1305 {
 }
 
 impl EncryptionAlgorithm for ChaCha20Poly1305 {
-    fn as_basic_algorithm(&self) -> &dyn Algorithm {
+    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
         self
     }
 
