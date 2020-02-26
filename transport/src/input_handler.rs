@@ -177,12 +177,12 @@ mod tests {
         );
 
         let chosen_algorithms = ChosenAlgorithms {
-            encryption_client_to_server: "none",
-            encryption_server_to_client: "aes128-ctr",
-            mac_client_to_server: Some("none"),
-            mac_server_to_client: Some("hmac-sha2-512"),
-            compression_client_to_server: "none",
-            compression_server_to_client: "none",
+            encryption_c2s: "none",
+            encryption_s2c: "aes128-ctr",
+            mac_c2s: Some("none"),
+            mac_s2c: Some("hmac-sha2-512"),
+            compression_c2s: "none",
+            compression_s2c: "none",
         };
 
         runtime_state.change_algorithms(
