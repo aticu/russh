@@ -113,62 +113,34 @@ impl RuntimeState {
         &self.available_algorithms
     }
 
-    /// Takes both the key exchange and the host key algorithms requested and returns them.
-    pub(crate) fn take_kex_and_host_key(
-        &mut self,
-        kex: &str,
-        host_key: &str,
-    ) -> Option<(Box<dyn KeyExchangeAlgorithm>, Box<dyn HostKeyAlgorithm>)> {
+    /// Returns access to the data necessary for a key exchange.
+    ///
+    /// This, in combination with the `start` method of the returned struct, allows simultaneous
+    /// mutable access to the `RuntimeState` and the required algorithms that normally live inside
+    /// it.
+    pub(crate) fn key_exchange(&mut self, kex: &str, host_key: &str) -> Option<KeyExchangeAccess> {
         let kex_index = self
             .available_algorithms
             .kex
             .iter()
-            .enumerate()
-            .find(|(_, a)| a.name() == kex)
-            .map(|(index, _)| index)?;
+            .position(|a| a.name() == kex)?;
 
         let host_key_index = self
             .available_algorithms
             .host_key
             .iter()
-            .enumerate()
-            .find(|(_, a)| a.name() == host_key)
-            .map(|(index, _)| index)?;
+            .position(|a| a.name() == host_key)?;
 
-        let kex = self.available_algorithms.kex.remove(kex_index);
-        let host_key = self.available_algorithms.host_key.remove(host_key_index);
+        let kex_alg = self.available_algorithms.kex.remove(kex_index);
+        let host_key_alg = self.available_algorithms.host_key.remove(host_key_index);
 
-        Some((kex, host_key))
-    }
-
-    /// Returns the kex and host key algorithms to the available algorithms.
-    pub(crate) fn return_kex_and_host_key(
-        &mut self,
-        kex: Box<dyn KeyExchangeAlgorithm>,
-        host_key: Box<dyn HostKeyAlgorithm>,
-    ) {
-        let kex_index = self
-            .algorithm_list
-            .kex
-            .iter()
-            .enumerate()
-            .find(|(_, name)| &kex.name() == name)
-            .map(|(index, _)| index)
-            .expect("returned algorithm should be in algorithm list");
-
-        let host_key_index = self
-            .algorithm_list
-            .host_key
-            .iter()
-            .enumerate()
-            .find(|(_, name)| &host_key.name() == name)
-            .map(|(index, _)| index)
-            .expect("returned algorithm should be in algorithm list");
-
-        self.available_algorithms.kex.insert(kex_index, kex);
-        self.available_algorithms
-            .host_key
-            .insert(host_key_index, host_key);
+        Some(KeyExchangeAccess {
+            kex_index,
+            host_key_index,
+            kex_alg: Some(kex_alg),
+            host_key_alg: Some(host_key_alg),
+            runtime_state: self,
+        })
     }
 
     /// Changes the chosen algorithms and loads new keys for the new algorithms.
@@ -191,5 +163,58 @@ impl RuntimeState {
         );
 
         self.chosen_algorithms = chosen_algorithms;
+    }
+}
+
+/// Grants access to the data required for a key exchange.
+pub(crate) struct KeyExchangeAccess<'a> {
+    /// The original index of the key exchange algorithm.
+    ///
+    /// This is used to determine where to return the algorithm to.
+    kex_index: usize,
+    /// The original index of the host key algorithm.
+    ///
+    /// This is used to determine where to return the algorithm to.
+    host_key_index: usize,
+    /// The key exchange algorithm used for the exchange.
+    kex_alg: Option<Box<dyn KeyExchangeAlgorithm>>,
+    /// The host key algorithm used for the exchange.
+    host_key_alg: Option<Box<dyn HostKeyAlgorithm>>,
+    /// The runtime state used for the exchange.
+    runtime_state: &'a mut RuntimeState,
+}
+
+impl Drop for KeyExchangeAccess<'_> {
+    fn drop(&mut self) {
+        self.runtime_state
+            .available_algorithms
+            .kex
+            .insert(self.kex_index, self.kex_alg.take().unwrap());
+
+        self.runtime_state
+            .available_algorithms
+            .host_key
+            .insert(self.host_key_index, self.host_key_alg.take().unwrap());
+    }
+}
+
+impl KeyExchangeAccess<'_> {
+    /// Returns the data necessary for a key exchange.
+    ///
+    /// The returned `&mut RuntimeState` is equivalent to the `RuntimeState` used to create the
+    /// `KeyExchangeAccess`, except that the `KeyExchangeAlgorithm` and `HostKeyAlgorithm` are
+    /// missing from that `RuntimeState`.
+    pub(crate) fn start(
+        &mut self,
+    ) -> (
+        &mut dyn KeyExchangeAlgorithm,
+        &mut dyn HostKeyAlgorithm,
+        &mut RuntimeState,
+    ) {
+        (
+            &mut **self.kex_alg.as_mut().unwrap(),
+            &mut **self.host_key_alg.as_mut().unwrap(),
+            self.runtime_state,
+        )
     }
 }

@@ -2,10 +2,7 @@
 
 use rand::Rng;
 use russh_common::{
-    algorithms::{
-        AlgorithmCategory, AlgorithmDirection, AlgorithmRole, HostKeyAlgorithm,
-        KeyExchangeAlgorithm, KeyExchangeData,
-    },
+    algorithms::{AlgorithmCategory, AlgorithmDirection, AlgorithmRole, KeyExchangeData},
     message_numbers::{SSH_MSG_NEWKEYS, SSH_MSG_SERVICE_ACCEPT, SSH_MSG_SERVICE_REQUEST},
     message_type::MessageType,
     parser_primitives::{parse_byte, parse_string},
@@ -162,17 +159,17 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         let role = *self.runtime_state.connection_role();
         // TODO: handle encryption and mac combining algorithms
 
-        let (mut kex_algorithm, mut host_key_algorithm, chosen_algorithms) =
+        let (kex_name, host_key_name, chosen_algorithms) =
             negotiate_algorithms(&mut self.runtime_state, &other_list)?;
 
-        let hash_fn = kex_algorithm.hash_fn();
+        let (hash_fn, kex_algorithm_result) = {
+            let mut key_exchange = self.runtime_state.key_exchange(kex_name, host_key_name).expect("chosen algorithms should exist in runtime state");
+            let (kex_algorithm, host_key_algorithm, mut runtime_state) = key_exchange.start();
 
-        let kex_algorithm_result = {
-            // This block needs to be free of early returns, otherwise the invariant that the
-            // algorithms are returned to the `AvailableAlgorithms` in the runtime state is
-            // invalidated.
+            let hash_fn = kex_algorithm.hash_fn();
+
             let local_identification_string =
-                format!("{}", self.runtime_state.local_version_info()).into_bytes();
+                format!("{}", runtime_state.local_version_info()).into_bytes();
             let (client_identification, server_identification) = match role {
                 ConnectionRole::Client => (
                     &local_identification_string,
@@ -200,16 +197,13 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
                 &mut *kex_algorithm,
                 &mut *host_key_algorithm,
                 &kex_data,
-                &mut self.runtime_state,
+                &mut runtime_state,
                 &mut self.input_handler,
                 &mut self.output_handler,
             )
             .await;
 
-            self.runtime_state
-                .return_kex_and_host_key(kex_algorithm, host_key_algorithm);
-
-            result
+            (hash_fn, result)
         };
 
         let kex::KeyExchangeResult {
@@ -327,8 +321,8 @@ fn negotiate_algorithms<'a>(
     other_list: &AlgorithmList,
 ) -> Result<
     (
-        Box<dyn KeyExchangeAlgorithm>,
-        Box<dyn HostKeyAlgorithm>,
+        &'static str,
+        &'static str,
         ChosenAlgorithms,
     ),
     KeyExchangeProcedureError,
@@ -433,11 +427,7 @@ fn negotiate_algorithms<'a>(
         compression_s2c,
     };
 
-    let (kex, host_key) = runtime_state
-        .take_kex_and_host_key(kex_name, host_key_name)
-        .expect("found kex and host key algorithms should exist");
-
-    Ok((kex, host_key, chosen_algorithms))
+    Ok((kex_name, host_key_name, chosen_algorithms))
 }
 
 /// Negotiates a server host key algorithm.
