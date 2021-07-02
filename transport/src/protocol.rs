@@ -163,7 +163,10 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             negotiate_algorithms(&mut self.runtime_state, &other_list)?;
 
         let (hash_fn, kex_algorithm_result) = {
-            let mut key_exchange = self.runtime_state.key_exchange(kex_name, host_key_name).expect("chosen algorithms should exist in runtime state");
+            let mut key_exchange = self
+                .runtime_state
+                .key_exchange(kex_name, host_key_name)
+                .expect("chosen algorithms should exist in runtime state");
             let (kex_algorithm, host_key_algorithm, mut runtime_state) = key_exchange.start();
 
             let hash_fn = kex_algorithm.hash_fn();
@@ -319,14 +322,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
 fn negotiate_algorithms<'a>(
     runtime_state: &'a mut RuntimeState,
     other_list: &AlgorithmList,
-) -> Result<
-    (
-        &'static str,
-        &'static str,
-        ChosenAlgorithms,
-    ),
-    KeyExchangeProcedureError,
-> {
+) -> Result<(&'static str, &'static str, ChosenAlgorithms), KeyExchangeProcedureError> {
     let own_list = runtime_state.algorithm_list();
     let own_role = runtime_state.connection_role();
     let available_algorithms = runtime_state.available_algorithms();

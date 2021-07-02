@@ -82,8 +82,7 @@ macro_rules! impl_aes_ctr {
                 let key = GenericArray::from_slice(key);
                 let nonce = GenericArray::from_slice(iv);
 
-                let old_value = self.algorithm
-                    .replace(<$alg>::new(&key, &nonce));
+                let old_value = self.algorithm.replace(<$alg>::new(&key, &nonce));
 
                 debug_assert!(old_value.is_none());
             }
@@ -95,9 +94,8 @@ macro_rules! impl_aes_ctr {
                 // Safety
                 // This is safe, because the cipher instance will be dropped before it can be read
                 // again.
-                let reinterpreted: &mut Option<[u8; mem::size_of::<$alg>()]> = unsafe {
-                    mem::transmute(&mut self.algorithm)
-                };
+                let reinterpreted: &mut Option<[u8; mem::size_of::<$alg>()]> =
+                    unsafe { mem::transmute(&mut self.algorithm) };
 
                 let array = reinterpreted
                     .as_mut()
