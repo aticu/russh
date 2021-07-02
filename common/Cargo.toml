@@ -7,10 +7,10 @@ keywords = ["ssh", "network", "russh"]
 edition = "2018"
 
 [dependencies]
-nom = "5.0"
+nom = "6.2"
 num-bigint = "0.2"
 rand = "0.7"
-err-derive = "0.1"
+err-derive = "0.3"
 
 [dev-dependencies]
 matches = "0.1"

@@ -7,16 +7,10 @@ use russh_common::algorithms::{
 #[cfg(any(feature = "aes128-ctr", feature = "aes192-ctr", feature = "aes256-ctr"))]
 #[doc(hidden)]
 mod aes_ctr;
-#[cfg(feature = "chacha20-poly1305@openssh.com")]
-#[doc(hidden)]
-mod chacha20_poly1305;
 
 #[cfg(any(feature = "aes128-ctr", feature = "aes192-ctr", feature = "aes256-ctr"))]
 #[doc(inline)]
 pub use self::aes_ctr::*;
-#[cfg(feature = "chacha20-poly1305@openssh.com")]
-#[doc(inline)]
-pub use self::chacha20_poly1305::*;
 
 /// The encryption algorithm that does nothing to the data.
 ///
@@ -85,9 +79,6 @@ pub fn algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
     let mut result: Vec<Box<dyn EncryptionAlgorithm>> = Vec::new();
 
     // This is the same order used by OpenSSH
-    #[cfg(feature = "chacha20-poly1305@openssh.com")]
-    result.push(ChaCha20Poly1305::boxed());
-
     #[cfg(feature = "aes128-ctr")]
     result.push(Aes128Ctr::boxed());
 

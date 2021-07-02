@@ -72,6 +72,8 @@ pub(in crate::parser) fn parse_initialization(
 mod tests {
     use nom::{error::ErrorKind, Err::Incomplete, Needed};
 
+    use std::num::NonZeroUsize;
+
     use super::*;
     use crate::writer::write_version_info;
 
@@ -87,7 +89,10 @@ mod tests {
             Ok((&b"\r\n"[..], "openSSH2.0"))
         );
 
-        assert_eq!(parse_version(b"2.0"), Err(Incomplete(Needed::Size(1))));
+        assert_eq!(
+            parse_version(b"2.0"),
+            Err(Incomplete(Needed::Size(NonZeroUsize::new(1).unwrap())))
+        );
     }
 
     #[test]
@@ -135,7 +140,7 @@ mod tests {
         );
         assert_eq!(
             parse_version_line(b"SSH--softvers.1.2\r\n"),
-            Err(nom::Err::Error((
+            Err(nom::Err::Error(nom::error::Error::new(
                 &b"-softvers.1.2\r\n"[..],
                 ErrorKind::TakeWhile1
             ))),
@@ -143,12 +148,15 @@ mod tests {
         );
         assert_eq!(
             parse_version_line(b"SSH-2.0-\r\n"),
-            Err(nom::Err::Error((&b"\r\n"[..], ErrorKind::TakeWhile1))),
+            Err(nom::Err::Error(nom::error::Error::new(
+                &b"\r\n"[..],
+                ErrorKind::TakeWhile1
+            ))),
             "empty softwareversion"
         );
         assert_eq!(
             parse_version_line(b"RSH-2.0-softvers.1.2 this is a comment\r\n"),
-            Err(nom::Err::Error((
+            Err(nom::Err::Error(nom::error::Error::new(
                 &b"RSH-2.0-softvers.1.2 this is a comment\r\n"[..],
                 ErrorKind::Tag
             ))),
@@ -156,7 +164,7 @@ mod tests {
         );
         assert_eq!(
             parse_version_line(b"SSH-\xff2.0-softvers.1.2 this is a comment\r\n"),
-            Err(nom::Err::Error((
+            Err(nom::Err::Error(nom::error::Error::new(
                 &b"\xff2.0-softvers.1.2 this is a comment\r\n"[..],
                 ErrorKind::TakeWhile1
             ))),
@@ -164,7 +172,7 @@ mod tests {
         );
         assert_eq!(
             parse_version_line(b"SSH-2.0\xff-softvers.1.2 this is a comment\r\n"),
-            Err(nom::Err::Error((
+            Err(nom::Err::Error(nom::error::Error::new(
                 &b"\xff-softvers.1.2 this is a comment\r\n"[..],
                 ErrorKind::Tag
             ))),
@@ -207,7 +215,7 @@ mod tests {
 
         assert_eq!(
             parse_initialization(b"SSH-\r\nSSH-2.0-softvers.1.2\r\n"),
-            Err(nom::Err::Error((
+            Err(nom::Err::Error(nom::error::Error::new(
                 &b"SSH-\r\nSSH-2.0-softvers.1.2\r\n"[..],
                 ErrorKind::Verify
             ))),

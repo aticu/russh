@@ -14,12 +14,12 @@ default-algorithms = ["russh-algorithms"]
 [dependencies]
 russh-common = { path = "../common" }
 russh-algorithms = { path = "../algorithms", optional = true }
-nom = "5.0"
+nom = "6.2"
 num-bigint = "0.2"
 tokio = { version = "0.2", features = ["io-util"] }
 rand = "0.7"
 rand_distr = "0.2"
-err-derive = "0.1"
+err-derive = "0.3"
 static_assertions = "1.0"
 
 [dev-dependencies]
