@@ -262,22 +262,22 @@ pub trait HostKeyAlgorithm: Algorithm {
 }
 
 /// There was an error while performing the key exchange algorithm.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum KeyExchangeAlgorithmError {
     /// A packet was sent with an invalid format.
-    #[error(display = "a key exchange packet had an invalid format")]
+    #[error("a key exchange packet had an invalid format")]
     InvalidFormat,
     /// The host key the server sent was not valid.
-    #[error(display = "the server sent an invalid host key")]
+    #[error("the server sent an invalid host key")]
     InvalidHostKey,
     /// The signature sent by the server was invalid.
-    #[error(display = "the server sent an invalid signature")]
+    #[error("the server sent an invalid signature")]
     InvalidSignature,
     /// There was another error.
     ///
     /// This allows implementers of `KeyExchangeAlgorithm` more flexibility
     /// when reporting errors.
-    #[error(display = "{}", _0)]
+    #[error("{0}")]
     Other(Box<dyn Error>),
 }
 

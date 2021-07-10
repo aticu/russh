@@ -8,9 +8,6 @@
 #![deny(missing_debug_implementations)]
 #![warn(unreachable_pub)]
 
-#[macro_use]
-extern crate err_derive;
-
 use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
 use russh_common::algorithms::{
     CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm, MacAlgorithm,

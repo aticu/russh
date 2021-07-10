@@ -5,9 +5,6 @@
 #![deny(missing_debug_implementations)]
 #![warn(unreachable_pub)]
 
-#[macro_use]
-extern crate err_derive;
-
 pub mod algorithms;
 pub mod message_numbers;
 pub mod message_type;
