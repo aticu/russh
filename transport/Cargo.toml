@@ -15,7 +15,7 @@ default-algorithms = ["russh-algorithms"]
 russh-common = { path = "../common" }
 russh-algorithms = { path = "../algorithms", optional = true }
 nom = "6.2"
-num-bigint = "0.2"
+num-bigint = "0.4"
 tokio = { version = "0.2", features = ["io-util"] }
 rand = "0.7"
 rand_distr = "0.2"
