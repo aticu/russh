@@ -1,10 +1,9 @@
 //! Implements a structure to hold the runtime state.
 
 use num_bigint::BigInt;
-use rand::RngCore;
 use russh_common::{
     algorithms::{HostKeyAlgorithm, KeyExchangeAlgorithm},
-    ConnectionRole,
+    ConnectionRole, CryptoRngCore,
 };
 use std::fmt;
 
@@ -29,7 +28,7 @@ pub(crate) struct RuntimeState {
     /// The role of the handler in the connection.
     connection_role: ConnectionRole,
     /// The random number generator used for the connection.
-    rng: Box<dyn RngCore>,
+    rng: Box<dyn CryptoRngCore>,
 }
 
 impl fmt::Debug for RuntimeState {
@@ -53,7 +52,7 @@ impl RuntimeState {
         version_info: VersionInformation,
         available_algorithms: AvailableAlgorithms,
         connection_role: ConnectionRole,
-        rng: Box<dyn RngCore>,
+        rng: Box<dyn CryptoRngCore>,
         allow_none_algorithms: bool,
     ) -> RuntimeState {
         RuntimeState {
@@ -75,7 +74,7 @@ impl RuntimeState {
     }
 
     /// Returns the rng to use for operations requiring randomness.
-    pub(crate) fn rng(&mut self) -> &mut dyn RngCore {
+    pub(crate) fn rng(&mut self) -> &mut dyn CryptoRngCore {
         &mut *self.rng
     }
 
@@ -98,7 +97,9 @@ impl RuntimeState {
     }
 
     /// Returns the algorithms used to encode our output.
-    pub(crate) fn output_algorithms_and_rng(&mut self) -> (PacketAlgorithms, &mut dyn RngCore) {
+    pub(crate) fn output_algorithms_and_rng(
+        &mut self,
+    ) -> (PacketAlgorithms, &mut dyn CryptoRngCore) {
         let role = *self.connection_role();
         (
             self.chosen_algorithms

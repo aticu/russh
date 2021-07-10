@@ -1,7 +1,6 @@
 //! Implements the "cureve25519-sha256" key exchange algorithm.
 
 use num_bigint::BigInt;
-use rand::RngCore;
 use russh_common::{
     algorithms::{
         Algorithm, AlgorithmCategory, HostKeyAlgorithm, KeyExchangeAlgorithm,
@@ -10,7 +9,7 @@ use russh_common::{
     message_numbers::{SSH_MSG_KEX_ECDH_INIT, SSH_MSG_KEX_ECDH_REPLY},
     parser_primitives::{parse_byte, parse_string, ParseError},
     writer_primitives::{write_byte, write_mpint, write_string},
-    ConnectionRole,
+    ConnectionRole, CryptoRngCore,
 };
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -69,22 +68,12 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
         role: &ConnectionRole,
         _key_exchange_data: &KeyExchangeData,
         _host_key_algorithm: &mut dyn HostKeyAlgorithm,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn CryptoRngCore,
     ) -> Option<Vec<u8>> {
         self.role.replace(*role);
         match role {
             ConnectionRole::Client => {
-                // Convert from a new rand rng to a rand 6.4 rng
-                use rand6::SeedableRng as _;
-                let mut rng = rand6::rngs::StdRng::from_seed({
-                    let mut seed: <rand6::rngs::StdRng as rand6::SeedableRng>::Seed =
-                        Default::default();
-                    rng.fill_bytes(seed.as_mut());
-
-                    seed
-                });
-
-                let secret = EphemeralSecret::new(&mut rng);
+                let secret = EphemeralSecret::new(rng);
                 let public = PublicKey::from(&secret);
 
                 let packet = write_ecdh_init(public.as_bytes());
@@ -102,7 +91,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
         message: &[u8],
         key_exchange_data: &KeyExchangeData,
         host_key_algorithm: &mut dyn HostKeyAlgorithm,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn CryptoRngCore,
     ) -> Result<KeyExchangeResponse, KeyExchangeAlgorithmError> {
         let role = self
             .role
@@ -196,17 +185,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
                     PublicKey::from(array)
                 };
 
-                // Convert from a new rand rng to a rand 6.4 rng
-                use rand6::SeedableRng as _;
-                let mut rng = rand6::rngs::StdRng::from_seed({
-                    let mut seed: <rand6::rngs::StdRng as rand6::SeedableRng>::Seed =
-                        Default::default();
-                    rng.fill_bytes(seed.as_mut());
-
-                    seed
-                });
-
-                let secret = EphemeralSecret::new(&mut rng);
+                let secret = EphemeralSecret::new(rng);
                 let own_public = PublicKey::from(&secret);
 
                 let shared_secret = secret.diffie_hellman(&other_public);

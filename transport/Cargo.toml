@@ -27,7 +27,7 @@ futures-preview = { version = "=0.3.0-alpha.17", features = ["async-await", "nig
 rand_chacha = "0.2.1"
 sha2 = "0.8"
 tokio = { version = "0.2", features = ["macros", "rt-core", "tcp", "process", "io-util", "time"] }
-ed25519-dalek = "1.0.0-pre.2"
+ed25519-dalek = "1.0"
 mktemp = "0.4"
 quale = "1.0"
 portpicker = "0.1"

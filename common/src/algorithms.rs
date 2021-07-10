@@ -1,10 +1,9 @@
 //! Provides traits to define algorithms used in the transport layer.
 
 use num_bigint::BigInt;
-use rand::RngCore;
 use std::{borrow::Cow, error::Error, fmt};
 
-use crate::ConnectionRole;
+use crate::{ConnectionRole, CryptoRngCore};
 
 /// Defines things which are common across all algorithm types.
 pub trait Algorithm {
@@ -150,7 +149,7 @@ pub trait KeyExchangeAlgorithm: Algorithm {
         role: &ConnectionRole,
         key_exchange_data: &KeyExchangeData,
         host_key_algorithm: &mut dyn HostKeyAlgorithm,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn CryptoRngCore,
     ) -> Option<Vec<u8>>;
 
     /// Responds to the given key exchange message.
@@ -179,7 +178,7 @@ pub trait KeyExchangeAlgorithm: Algorithm {
         message: &[u8],
         key_exchange_data: &KeyExchangeData,
         host_key_algorithm: &mut dyn HostKeyAlgorithm,
-        rng: &mut dyn RngCore,
+        rng: &mut dyn CryptoRngCore,
     ) -> Result<KeyExchangeResponse, KeyExchangeAlgorithmError>;
 
     /// Returns the hash function used by this key exchange algorithm.

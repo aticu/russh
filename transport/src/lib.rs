@@ -9,8 +9,12 @@
 #![warn(unreachable_pub)]
 
 use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
-use russh_common::algorithms::{
-    CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm, MacAlgorithm,
+use russh_common::{
+    algorithms::{
+        CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm,
+        MacAlgorithm,
+    },
+    CryptoRngCore,
 };
 use std::{borrow::Cow, fmt};
 
@@ -117,7 +121,7 @@ pub struct Builder<Input: InputStream, Output: OutputStream> {
     /// The distribution used for packet padding lengths.
     padding_length_distribution: Option<Box<PaddingLengthDistribution>>,
     /// The random number generator used for any required randomness.
-    rng: Option<Box<dyn RngCore>>,
+    rng: Option<Box<dyn CryptoRngCore>>,
     /// Whether to allow "none" algorithms for encryption and MAC.
     allow_none_algorithms: bool,
 }

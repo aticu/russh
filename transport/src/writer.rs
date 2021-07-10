@@ -2,10 +2,10 @@
 //!
 //! This is the counter part to the `parser` module.
 
-use rand::RngCore;
 use russh_common::{
     algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm},
     writer_primitives::{write_byte, write_uint32},
+    CryptoRngCore,
 };
 use std::{
     cmp::{max, min},
@@ -51,8 +51,8 @@ impl WriterOutputStream {
         &self,
         payload_len: usize,
         align: usize,
-        rng: &mut dyn RngCore,
-        padding_distribution: &mut dyn FnMut(&mut dyn RngCore) -> u8,
+        rng: &mut dyn CryptoRngCore,
+        padding_distribution: &mut dyn FnMut(&mut dyn CryptoRngCore) -> u8,
         include_packet_length: bool,
     ) -> u8 {
         let optional_packet_len_size = if include_packet_length {
@@ -106,7 +106,7 @@ impl WriterOutputStream {
     }
 
     /// Writes the padding of the packet.
-    fn write_padding(&mut self, padding_len: u8, rng: &mut dyn RngCore) {
+    fn write_padding(&mut self, padding_len: u8, rng: &mut dyn CryptoRngCore) {
         let padding_start = self.data.len();
 
         self.data.resize(padding_start + padding_len as usize, 0);
@@ -140,8 +140,8 @@ impl WriterOutputStream {
         encryption_algorithm: &mut dyn EncryptionAlgorithm,
         mac_algorithm: Option<&mut dyn MacAlgorithm>,
         sequence_number: u32,
-        rng: &mut dyn RngCore,
-        distr: &mut dyn FnMut(&mut dyn RngCore) -> u8,
+        rng: &mut dyn CryptoRngCore,
+        distr: &mut dyn FnMut(&mut dyn CryptoRngCore) -> u8,
     ) {
         let align = max(
             MIN_PACKET_LEN_ALIGN,

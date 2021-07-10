@@ -1,7 +1,8 @@
 //! Aids with customization of the padding lengths for outgoing packets.
 
-use rand::{distributions::Distribution, RngCore};
+use rand::distributions::Distribution;
 use rand_distr::Gamma;
+use russh_common::CryptoRngCore;
 
 use crate::constants::MAX_EXTRA_PADDING_BLOCKS;
 
@@ -22,7 +23,7 @@ use crate::constants::MAX_EXTRA_PADDING_BLOCKS;
 /// If the returned value would result in a padding that is too large to hold in the
 /// `padding_length` field of a packet, it will be cropped to be small enough. Therefore any value
 /// returned by these functions is a valid one.
-pub type PaddingLengthDistribution = dyn FnMut(&mut dyn RngCore) -> u8;
+pub type PaddingLengthDistribution = dyn FnMut(&mut dyn CryptoRngCore) -> u8;
 
 /// Returns the distribution for padding lengths to be used by default.
 ///
