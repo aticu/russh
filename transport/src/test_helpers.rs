@@ -131,7 +131,6 @@ impl AsyncWrite for FakeNetworkOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use matches::assert_matches;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[test]
@@ -166,29 +165,29 @@ mod tests {
         futures::executor::block_on(async {
             assert_eq!(fake_output.write(&data[0..]).await.ok(), Some(50));
             assert_eq!(fake_output.written().len(), 0);
-            assert_matches!(fake_output.flush().await, Ok(()));
+            assert!(matches!(fake_output.flush().await, Ok(())));
             assert_eq!(&data[0..50], &fake_output.written()[0..50]);
 
             assert_eq!(fake_output.write(&data[50..]).await.ok(), Some(50));
             assert_eq!(fake_output.written().len(), 50);
-            assert_matches!(fake_output.flush().await, Ok(()));
+            assert!(matches!(fake_output.flush().await, Ok(())));
             assert_eq!(&data[50..100], &fake_output.written()[50..100]);
 
             assert_eq!(fake_output.write(&data[100..]).await.ok(), Some(50));
             assert_eq!(fake_output.written().len(), 100);
-            assert_matches!(fake_output.flush().await, Ok(()));
+            assert!(matches!(fake_output.flush().await, Ok(())));
             assert_eq!(&data[100..150], &fake_output.written()[100..150]);
 
             assert_eq!(fake_output.write(&data[150..]).await.ok(), Some(25));
             assert_eq!(fake_output.written().len(), 150);
-            assert_matches!(fake_output.flush().await, Ok(()));
+            assert!(matches!(fake_output.flush().await, Ok(())));
             assert_eq!(&data[150..175], &fake_output.written()[150..175]);
 
             assert_eq!(fake_output.written().len(), 175);
-            assert_matches!(fake_output.flush().await, Ok(()));
+            assert!(matches!(fake_output.flush().await, Ok(())));
             assert_eq!(fake_output.written().len(), 175);
 
-            assert_matches!(fake_output.shutdown().await, Ok(()));
+            assert!(matches!(fake_output.shutdown().await, Ok(())));
 
             assert_eq!(
                 fake_output.write(&data).await.unwrap_err().kind(),

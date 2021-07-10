@@ -306,8 +306,6 @@ pub(in crate::protocol) fn negotiate_algorithm(
 
 #[cfg(test)]
 mod tests {
-    use matches::assert_matches;
-
     use super::*;
 
     #[test]
@@ -334,7 +332,7 @@ mod tests {
             first_kex_packet_follows: false,
         };
 
-        assert_matches!(write_kexinit(&packet, &mut target), Ok(()));
+        assert!(matches!(write_kexinit(&packet, &mut target), Ok(())));
 
         assert_eq!(
             &target[..],

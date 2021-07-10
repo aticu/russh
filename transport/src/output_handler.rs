@@ -150,7 +150,6 @@ impl<'o, Output: OutputStream> PacketFlusher<'o, Output> {
 
 #[cfg(test)]
 mod tests {
-    use matches::assert_matches;
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
 
@@ -190,7 +189,7 @@ mod tests {
 
             assert_eq!(flusher.output.written(), &[]);
 
-            assert_matches!(flusher.flush().await, Ok(()));
+            assert!(matches!(flusher.flush().await, Ok(())));
         });
 
         assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
@@ -200,7 +199,7 @@ mod tests {
 
             assert_eq!(flusher.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
 
-            assert_matches!(flusher.flush().await, Ok(()));
+            assert!(matches!(flusher.flush().await, Ok(())));
         });
 
         assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d\x00\x00\x00\x1c\x0bone more message\xc3\x87\xb6\x69\xb2\xee\x65\x86\x9f\x07\xe7"[..]);
@@ -223,21 +222,21 @@ mod tests {
         let message = b"this is an important message";
 
         futures::executor::block_on(async {
-            assert_matches!(
+            assert!(matches!(
                 output_handler
                     .initialize(runtime_state.local_version_info())
                     .flush()
                     .await,
                 Ok(())
-            );
+            ));
 
-            assert_matches!(
+            assert!(matches!(
                 output_handler
                     .send_packet(message, &mut runtime_state)
                     .flush()
                     .await,
                 Ok(())
-            );
+            ));
         });
 
         let fake_input = FakeNetworkInput::new(output_handler.output.written().to_owned(), 1);
@@ -269,10 +268,10 @@ mod tests {
                 message.to_vec()
             );
 
-            assert_matches!(
+            assert!(matches!(
                 input_handler.next_packet(&mut runtime_state).await,
                 Err(CommunicationError::EndOfInput)
-            );
+            ));
         });
     }
 }

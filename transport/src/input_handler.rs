@@ -144,7 +144,6 @@ impl<Input: InputStream> InputHandler<Input> {
 
 #[cfg(test)]
 mod tests {
-    use matches::assert_matches;
     use num_bigint::BigInt;
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
@@ -210,10 +209,10 @@ mod tests {
                 b"testpayload".to_vec()
             );
 
-            assert_matches!(
+            assert!(matches!(
                 input_handler.next_packet(&mut runtime_state).await,
                 Err(CommunicationError::EndOfInput)
-            );
+            ));
         });
     }
 
@@ -258,10 +257,10 @@ mod tests {
                 b"othertester".to_vec()
             );
 
-            assert_matches!(
+            assert!(matches!(
                 input_handler.next_packet(&mut runtime_state).await,
                 Err(CommunicationError::EndOfInput)
-            );
+            ));
         });
     }
 
@@ -292,10 +291,10 @@ mod tests {
                 )
             );
 
-            assert_matches!(
+            assert!(matches!(
                 input_handler.next_packet(&mut runtime_state).await,
                 Err(CommunicationError::InvalidFormat)
-            );
+            ));
         });
     }
 }

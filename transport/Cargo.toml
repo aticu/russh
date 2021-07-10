@@ -23,7 +23,6 @@ thiserror = "1.0"
 static_assertions = "1.0"
 
 [dev-dependencies]
-matches = "0.1"
 futures-preview = { version = "=0.3.0-alpha.17", features = ["async-await", "nightly"] }
 rand_chacha = "0.2.1"
 sha2 = "0.8"
