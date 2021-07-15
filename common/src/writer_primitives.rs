@@ -161,18 +161,16 @@ pub fn write_name_list<T: AsRef<str>>(input: &[T], output: &mut impl Write) -> i
 
 #[cfg(test)]
 mod tests {
-    use matches::assert_matches;
-
     use super::*;
 
     #[test]
     fn byte() {
         let mut vec = b"data".to_vec();
 
-        assert_matches!(write_byte(0x32, &mut vec), Ok(()));
+        assert!(matches!(write_byte(0x32, &mut vec), Ok(())));
         assert_eq!(&vec[..], &[b'd', b'a', b't', b'a', 0x32][..]);
 
-        assert_matches!(write_byte(0x01, &mut vec), Ok(()));
+        assert!(matches!(write_byte(0x01, &mut vec), Ok(())));
         assert_eq!(&vec[..], &[b'd', b'a', b't', b'a', 0x32, 0x01][..]);
     }
 
@@ -180,10 +178,10 @@ mod tests {
     fn boolean() {
         let mut vec = b"data".to_vec();
 
-        assert_matches!(write_boolean(true, &mut vec), Ok(()));
+        assert!(matches!(write_boolean(true, &mut vec), Ok(())));
         assert_eq!(&vec[..], &[b'd', b'a', b't', b'a', 0x01][..]);
 
-        assert_matches!(write_boolean(false, &mut vec), Ok(()));
+        assert!(matches!(write_boolean(false, &mut vec), Ok(())));
         assert_eq!(&vec[..], &[b'd', b'a', b't', b'a', 0x01, 0x00][..]);
     }
 
@@ -191,13 +189,13 @@ mod tests {
     fn uint32() {
         let mut vec = b"data".to_vec();
 
-        assert_matches!(write_uint32(0x01020304, &mut vec), Ok(()));
+        assert!(matches!(write_uint32(0x01020304, &mut vec), Ok(())));
         assert_eq!(
             &vec[..],
             &[b'd', b'a', b't', b'a', 0x01, 0x02, 0x03, 0x04][..]
         );
 
-        assert_matches!(write_uint32(0x04030201, &mut vec), Ok(()));
+        assert!(matches!(write_uint32(0x04030201, &mut vec), Ok(())));
         assert_eq!(
             &vec[..],
             &[b'd', b'a', b't', b'a', 0x01, 0x02, 0x03, 0x04, 0x04, 0x03, 0x02, 0x01][..]
@@ -208,13 +206,13 @@ mod tests {
     fn uint64() {
         let mut vec = b"data".to_vec();
 
-        assert_matches!(write_uint64(0x0102030405060708, &mut vec), Ok(()));
+        assert!(matches!(write_uint64(0x0102030405060708, &mut vec), Ok(())));
         assert_eq!(
             &vec[..],
             &[b'd', b'a', b't', b'a', 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08][..]
         );
 
-        assert_matches!(write_uint64(0x0807060504030201, &mut vec), Ok(()));
+        assert!(matches!(write_uint64(0x0807060504030201, &mut vec), Ok(())));
         assert_eq!(
             &vec[..],
             &[
@@ -228,13 +226,13 @@ mod tests {
     fn string() {
         let mut vec = b"data".to_vec();
 
-        assert_matches!(write_string(b"testing", &mut vec), Ok(()));
+        assert!(matches!(write_string(b"testing", &mut vec), Ok(())));
         assert_eq!(&vec[..], &b"data\x00\x00\x00\x07testing"[..]);
 
-        assert_matches!(
+        assert!(matches!(
             write_string(&[0x00, 0xff, 0x01, 0x02, 0x03, 0x04][..], &mut vec),
             Ok(())
-        );
+        ));
         assert_eq!(
             &vec[..],
             &b"data\x00\x00\x00\x07testing\x00\x00\x00\x06\x00\xff\x01\x02\x03\x04"[..]
@@ -245,22 +243,22 @@ mod tests {
     fn mpint() {
         let mut vec = b"data".to_vec();
 
-        assert_matches!(
+        assert!(matches!(
             write_mpint(&BigInt::parse_bytes(b"0", 16).unwrap(), &mut vec),
             Ok(())
-        );
+        ));
         assert_eq!(
             &vec[..],
             &[b'd', b'a', b't', b'a', 0x00, 0x00, 0x00, 0x00][..]
         );
 
-        assert_matches!(
+        assert!(matches!(
             write_mpint(
                 &BigInt::parse_bytes(b"9a378f9b2e332a7", 16).unwrap(),
                 &mut vec
             ),
             Ok(())
-        );
+        ));
         assert_eq!(
             &vec[..],
             &[
@@ -271,16 +269,16 @@ mod tests {
 
         vec.clear();
 
-        assert_matches!(
+        assert!(matches!(
             write_mpint(&BigInt::parse_bytes(b"80", 16).unwrap(), &mut vec),
             Ok(())
-        );
+        ));
         assert_eq!(&vec[..], &[0x00, 0x00, 0x00, 0x02, 0x00, 0x80][..]);
 
-        assert_matches!(
+        assert!(matches!(
             write_mpint(&BigInt::parse_bytes(b"-1234", 16).unwrap(), &mut vec),
             Ok(())
-        );
+        ));
         assert_eq!(
             &vec[..],
             &[0x00, 0x00, 0x00, 0x02, 0x00, 0x80, 0x00, 0x00, 0x00, 0x02, 0xed, 0xcc][..]
@@ -288,10 +286,10 @@ mod tests {
 
         vec.clear();
 
-        assert_matches!(
+        assert!(matches!(
             write_mpint(&BigInt::parse_bytes(b"-deadbeef", 16).unwrap(), &mut vec),
             Ok(())
-        );
+        ));
         assert_eq!(
             &vec[..],
             &[0x00, 0x00, 0x00, 0x05, 0xff, 0x21, 0x52, 0x41, 0x11][..]
@@ -304,13 +302,16 @@ mod tests {
 
         let empty_list: &[&'static str] = &[];
 
-        assert_matches!(write_name_list(empty_list, &mut vec), Ok(()));
+        assert!(matches!(write_name_list(empty_list, &mut vec), Ok(())));
         assert_eq!(&vec[..], &b"data\x00\x00\x00\x00"[..]);
 
-        assert_matches!(write_name_list(&["zlib"][..], &mut vec), Ok(()));
+        assert!(matches!(write_name_list(&["zlib"][..], &mut vec), Ok(())));
         assert_eq!(&vec[..], &b"data\x00\x00\x00\x00\x00\x00\x00\x04zlib"[..]);
 
-        assert_matches!(write_name_list(&["zlib", "none"][..], &mut vec), Ok(()));
+        assert!(matches!(
+            write_name_list(&["zlib", "none"][..], &mut vec),
+            Ok(())
+        ));
         assert_eq!(
             &vec[..],
             &b"data\x00\x00\x00\x00\x00\x00\x00\x04zlib\x00\x00\x00\x09zlib,none"[..]
@@ -318,10 +319,10 @@ mod tests {
 
         vec.clear();
 
-        assert_matches!(
+        assert!(matches!(
             write_name_list(&["a", "b", "c", "d", "e"][..], &mut vec),
             Ok(())
-        );
+        ));
         assert_eq!(&vec[..], &b"\x00\x00\x00\x09a,b,c,d,e"[..]);
     }
 }

@@ -11,6 +11,3 @@ nom = "6.2"
 num-bigint = "0.4"
 rand = "0.7"
 thiserror = "1.0"
-
-[dev-dependencies]
-matches = "0.1"
