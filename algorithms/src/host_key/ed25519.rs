@@ -4,7 +4,7 @@ use ed25519_dalek::{
     ed25519::signature::Signature, Keypair, PublicKey, SignatureError, Signer, Verifier,
     SIGNATURE_LENGTH,
 };
-use russh_common::algorithms::{Algorithm, AlgorithmCategory, HostKeyAlgorithm};
+use russh_definitions::algorithms::{Algorithm, AlgorithmCategory, HostKeyAlgorithm};
 use std::{error::Error, fmt};
 
 /// The prefix used for a signature.

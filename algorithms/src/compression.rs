@@ -1,6 +1,6 @@
 //! Provides the compression algorithms used by the SSH transport layer.
 
-use russh_common::algorithms::{Algorithm, AlgorithmCategory, CompressionAlgorithm};
+use russh_definitions::algorithms::{Algorithm, AlgorithmCategory, CompressionAlgorithm};
 use std::{borrow::Cow, error::Error};
 
 // TODO: implement at least one compression algorithm

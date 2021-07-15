@@ -1,6 +1,6 @@
 //! Contains helper functions to implement algorithms and check their validity.
 
-use russh_common::algorithms::Algorithm;
+use russh_definitions::algorithms::Algorithm;
 
 use crate::errors::{InvalidAlgorithmError, InvalidNameError};
 

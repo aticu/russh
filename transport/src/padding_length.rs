@@ -2,7 +2,7 @@
 
 use rand::distributions::Distribution;
 use rand_distr::Gamma;
-use russh_common::CryptoRngCore;
+use russh_definitions::CryptoRngCore;
 
 use crate::constants::MAX_EXTRA_PADDING_BLOCKS;
 

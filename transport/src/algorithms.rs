@@ -1,7 +1,7 @@
 //! Provides traits for the needed types of algorithms.
 
 use num_bigint::BigInt;
-use russh_common::{
+use russh_definitions::{
     algorithms::{
         AlgorithmCategory, AlgorithmDirection, AlgorithmRole, CompressionAlgorithm,
         EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeHashFunction,

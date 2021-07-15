@@ -1,7 +1,7 @@
 //! Contains logic to decide which packets are sent when.
 
 use rand::Rng;
-use russh_common::{
+use russh_definitions::{
     algorithms::{AlgorithmCategory, AlgorithmDirection, AlgorithmRole, KeyExchangeData},
     message_numbers::{SSH_MSG_NEWKEYS, SSH_MSG_SERVICE_ACCEPT, SSH_MSG_SERVICE_REQUEST},
     message_type::MessageType,

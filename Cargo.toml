@@ -2,7 +2,7 @@
 
 members = [
     "algorithms",
-    "common",
+    "definitions",
     "transport",
 ]
 

@@ -8,7 +8,7 @@ use hmac::{
     digest::FixedOutput,
     Hmac, Mac,
 };
-use russh_common::algorithms::{Algorithm, AlgorithmCategory, MacAlgorithm};
+use russh_definitions::algorithms::{Algorithm, AlgorithmCategory, MacAlgorithm};
 use secstr::SecStr;
 
 macro_rules! impl_hmac_sha {

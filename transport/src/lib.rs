@@ -9,7 +9,7 @@
 #![warn(unreachable_pub)]
 
 use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
-use russh_common::{
+use russh_definitions::{
     algorithms::{
         CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm,
         MacAlgorithm,
@@ -33,7 +33,7 @@ use crate::{
 
 pub use input_handler::InputStream;
 pub use output_handler::OutputStream;
-pub use russh_common::ConnectionRole;
+pub use russh_definitions::ConnectionRole;
 pub use version::VersionInformation;
 
 mod algorithms;

@@ -1,6 +1,6 @@
 //! Defines all the errors that can occur in the transport layer.
 
-pub use russh_common::{
+pub use russh_definitions::{
     algorithms::{AlgorithmCategory, AlgorithmRole, KeyExchangeAlgorithmError},
     parser_primitives::ParseError,
 };

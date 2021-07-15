@@ -2,7 +2,7 @@
 
 use nom::bytes::complete::{tag, take};
 use num_bigint::BigInt;
-use russh_common::{
+use russh_definitions::{
     algorithms::{
         AlgorithmCategory, AlgorithmRole, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeData,
         KeyExchangeResponse,

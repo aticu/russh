@@ -1,7 +1,7 @@
 //! Implements a structure to hold the runtime state.
 
 use num_bigint::BigInt;
-use russh_common::{
+use russh_definitions::{
     algorithms::{HostKeyAlgorithm, KeyExchangeAlgorithm},
     ConnectionRole, CryptoRngCore,
 };

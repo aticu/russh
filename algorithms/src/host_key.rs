@@ -1,6 +1,6 @@
 //! Provides the encryption algorithms used by the SSH transport layer.
 
-use russh_common::algorithms::HostKeyAlgorithm;
+use russh_definitions::algorithms::HostKeyAlgorithm;
 
 #[cfg(feature = "ssh-ed25519")]
 #[doc(hidden)]

@@ -2,7 +2,7 @@
 //!
 //! This is the counter part to the `parser` module.
 
-use russh_common::{
+use russh_definitions::{
     algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm},
     writer_primitives::{write_byte, write_uint32},
     CryptoRngCore,

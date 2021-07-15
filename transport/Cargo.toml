@@ -12,7 +12,7 @@ default = ["default-algorithms"]
 default-algorithms = ["russh-algorithms"]
 
 [dependencies]
-russh-common = { path = "../common" }
+russh-definitions = { path = "../definitions" }
 russh-algorithms = { path = "../algorithms", optional = true }
 nom = "6.2"
 num-bigint = "0.4"

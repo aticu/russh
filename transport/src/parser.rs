@@ -2,7 +2,7 @@
 //!
 //! This is the counter part to the `writer` module.
 
-use russh_common::algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm};
+use russh_definitions::algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm};
 use std::cmp::{max, min};
 
 use self::{

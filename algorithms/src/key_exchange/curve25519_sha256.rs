@@ -1,7 +1,7 @@
 //! Implements the "cureve25519-sha256" key exchange algorithm.
 
 use num_bigint::BigInt;
-use russh_common::{
+use russh_definitions::{
     algorithms::{
         Algorithm, AlgorithmCategory, HostKeyAlgorithm, KeyExchangeAlgorithm,
         KeyExchangeAlgorithmError, KeyExchangeData, KeyExchangeResponse,

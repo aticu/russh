@@ -1,7 +1,7 @@
 //! Allows for parsing of unencrypted packets.
 
 use nom::bytes::streaming::take;
-use russh_common::parser_primitives::{parse_byte, parse_uint32, ParseResult};
+use russh_definitions::parser_primitives::{parse_byte, parse_uint32, ParseResult};
 
 use crate::errors::ParseError;
 
