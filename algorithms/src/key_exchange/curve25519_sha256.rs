@@ -1,4 +1,4 @@
-//! Implements the "cureve25519-sha256" key exchange algorithm.
+//! Implements the "curve25519-sha256" key exchange algorithm.
 
 use num_bigint::BigInt;
 use russh_definitions::{
@@ -6,10 +6,8 @@ use russh_definitions::{
         Algorithm, AlgorithmCategory, HostKeyAlgorithm, KeyExchangeAlgorithm,
         KeyExchangeAlgorithmError, KeyExchangeData, KeyExchangeResponse,
     },
-    message_numbers::{SSH_MSG_KEX_ECDH_INIT, SSH_MSG_KEX_ECDH_REPLY},
-    parser_primitives::{parse_byte, parse_string, ParseError},
-    writer_primitives::{write_byte, write_mpint, write_string},
-    ConnectionRole, CryptoRngCore,
+    consts::{SSH_MSG_KEX_ECDH_INIT, SSH_MSG_KEX_ECDH_REPLY},
+    write, ConnectionRole, CryptoRngCore, ParsedValue,
 };
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -76,7 +74,12 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
                 let secret = EphemeralSecret::new(rng);
                 let public = PublicKey::from(&secret);
 
-                let packet = write_ecdh_init(public.as_bytes());
+                use russh_definitions::Compose as _;
+                let packet = MsgKexEcdhInit {
+                    client_public_key: (&public.as_bytes()[..]).into(),
+                    ..Default::default()
+                }
+                .compose_to_vec();
 
                 self.secret.replace(secret);
 
@@ -99,22 +102,27 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
 
         match role {
             ConnectionRole::Client => {
-                let (host_key, public_key, signature) = parse_ecdh_reply(message)
+                use russh_definitions::Parse;
+                let ParsedValue {
+                    value:
+                        MsgKexEcdhReply {
+                            server_host_key,
+                            server_public_key,
+                            exchange_hash_signature,
+                            ..
+                        },
+                    ..
+                } = MsgKexEcdhReply::parse(message)
+                    //let (host_key, public_key, signature) = parse_ecdh_reply(message)
                     .map_err(|_| KeyExchangeAlgorithmError::InvalidFormat)?;
 
-                if public_key.len() != 32 {
+                if server_public_key.len() != 32 {
                     return Err(KeyExchangeAlgorithmError::InvalidFormat);
                 }
 
-                let other_public = {
-                    let mut array = [0; 32];
-
-                    for (i, elem) in array.iter_mut().enumerate() {
-                        *elem = public_key[i];
-                    }
-
-                    PublicKey::from(array)
-                };
+                use std::convert::TryInto as _;
+                let server_public_key: [u8; 32] = (&server_public_key[..]).try_into().unwrap();
+                let other_public = PublicKey::from(server_public_key);
 
                 let own_secret = self
                     .secret
@@ -131,24 +139,24 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
                 };
 
                 let mut hasher = Sha256::new();
-                write_string(key_exchange_data.client_identification, &mut hasher)
+                write::string(key_exchange_data.client_identification, &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(key_exchange_data.server_identification, &mut hasher)
+                write::string(key_exchange_data.server_identification, &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(key_exchange_data.client_kexinit, &mut hasher)
+                write::string(key_exchange_data.client_kexinit, &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(key_exchange_data.server_kexinit, &mut hasher)
+                write::string(key_exchange_data.server_kexinit, &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(host_key, &mut hasher).expect("hasher writes don't fail");
-                write_string(client_public.as_bytes(), &mut hasher)
+                write::string(&server_host_key, &mut hasher).expect("hasher writes don't fail");
+                write::string(client_public.as_bytes(), &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(server_public.as_bytes(), &mut hasher)
+                write::string(server_public.as_bytes(), &mut hasher)
                     .expect("hasher writes don't fail");
-                write_mpint(&shared_secret_bigint, &mut hasher).expect("hasher writes don't fail");
+                write::mpint(&shared_secret_bigint, &mut hasher).expect("hasher writes don't fail");
 
                 let hash = hasher.result();
 
-                if !host_key_algorithm.verify(&hash, signature, host_key) {
+                if !host_key_algorithm.verify(&hash, &exchange_hash_signature, &server_host_key) {
                     return Err(KeyExchangeAlgorithmError::InvalidSignature);
                 }
 
@@ -156,34 +164,31 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
                 // TODO: verify that key belongs to server
 
                 let mut shared_secret_mpint = Vec::new();
-                write_mpint(&shared_secret_bigint, &mut shared_secret_mpint)
+                write::mpint(&shared_secret_bigint, &mut shared_secret_mpint)
                     .expect("vec writes don't fail");
 
                 self.role = None;
                 Ok(KeyExchangeResponse::Finished {
-                    host_key: Some(host_key.to_vec()),
+                    host_key: Some(server_host_key.to_vec()),
                     shared_secret: shared_secret_bigint,
                     exchange_hash: hash.to_vec(),
                     message: None,
                 })
             }
             ConnectionRole::Server => {
-                let public_key = parse_ecdh_init(message)
+                use russh_definitions::Parse as _;
+                let ParsedValue {
+                    value: init_msg, ..
+                } = MsgKexEcdhInit::parse(message)
                     .map_err(|_| KeyExchangeAlgorithmError::InvalidFormat)?;
 
-                if public_key.len() != 32 {
+                if init_msg.client_public_key.len() != 32 {
                     return Err(KeyExchangeAlgorithmError::InvalidFormat);
                 }
 
-                let other_public = {
-                    let mut array = [0; 32];
-
-                    for (i, elem) in array.iter_mut().enumerate() {
-                        *elem = public_key[i];
-                    }
-
-                    PublicKey::from(array)
-                };
+                use std::convert::TryInto as _;
+                let public_key: [u8; 32] = (&init_msg.client_public_key[..]).try_into().unwrap();
+                let other_public = { PublicKey::from(public_key) };
 
                 let secret = EphemeralSecret::new(rng);
                 let own_public = PublicKey::from(&secret);
@@ -198,21 +203,21 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
                 };
 
                 let mut hasher = Sha256::new();
-                write_string(key_exchange_data.client_identification, &mut hasher)
+                write::string(key_exchange_data.client_identification, &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(key_exchange_data.server_identification, &mut hasher)
+                write::string(key_exchange_data.server_identification, &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(key_exchange_data.client_kexinit, &mut hasher)
+                write::string(key_exchange_data.client_kexinit, &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(key_exchange_data.server_kexinit, &mut hasher)
+                write::string(key_exchange_data.server_kexinit, &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(&host_key_algorithm.public_key(), &mut hasher)
+                write::string(&host_key_algorithm.public_key(), &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(client_public.as_bytes(), &mut hasher)
+                write::string(client_public.as_bytes(), &mut hasher)
                     .expect("hasher writes don't fail");
-                write_string(server_public.as_bytes(), &mut hasher)
+                write::string(server_public.as_bytes(), &mut hasher)
                     .expect("hasher writes don't fail");
-                write_mpint(&shared_secret_bigint, &mut hasher).expect("hasher writes don't fail");
+                write::mpint(&shared_secret_bigint, &mut hasher).expect("hasher writes don't fail");
 
                 let hash = hasher.result();
 
@@ -222,11 +227,14 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
 
                 host_key_algorithm.sign(&hash, &mut signature);
 
-                let packet = write_ecdh_reply(
-                    &host_key_algorithm.public_key(),
-                    own_public.as_bytes(),
-                    &signature,
-                );
+                use russh_definitions::Compose as _;
+                let packet = MsgKexEcdhReply {
+                    server_host_key: host_key_algorithm.public_key().into(),
+                    server_public_key: (&own_public.as_bytes()[..]).into(),
+                    exchange_hash_signature: signature.into(),
+                    ..Default::default()
+                }
+                .compose_to_vec();
 
                 Ok(KeyExchangeResponse::Finished {
                     host_key: None,
@@ -249,52 +257,18 @@ impl fmt::Debug for Curve25519Sha256 {
     }
 }
 
-/// Writes a `SSH_MSG_KEX_ECDH_REPLY` packet.
-fn write_ecdh_reply(host_key: &[u8], public_key: &[u8], signature: &[u8]) -> Vec<u8> {
-    let mut packet = Vec::new();
-
-    write_byte(SSH_MSG_KEX_ECDH_REPLY, &mut packet).expect("vec write never fails");
-    write_string(host_key, &mut packet).expect("vec write never fails");
-    write_string(public_key, &mut packet).expect("vec write never fails");
-    write_string(signature, &mut packet).expect("vec write never fails");
-
-    packet
-}
-
-/// Writes a `SSH_MSG_KEX_ECDH_INIT` packet.
-fn write_ecdh_init(public_key: &[u8]) -> Vec<u8> {
-    let mut packet = Vec::new();
-
-    write_byte(SSH_MSG_KEX_ECDH_INIT, &mut packet).expect("vec write never fails");
-    write_string(public_key, &mut packet).expect("vec write never fails");
-
-    packet
-}
-
-/// Parses a `SSH_MSG_KEX_ECDH_REPLY` packet.
-fn parse_ecdh_reply(message: &[u8]) -> Result<(&[u8], &[u8], &[u8]), ParseError> {
-    let (rest, tag) = parse_byte(message)?;
-
-    if tag != SSH_MSG_KEX_ECDH_REPLY {
-        return Err(ParseError::Invalid);
+russh_definitions::ssh_packet! {
+    #[derive(Default)]
+    struct MsgKexEcdhInit {
+        byte     {SSH_MSG_KEX_ECDH_INIT}
+        string   client_public_key
     }
 
-    let (rest, host_key) = parse_string(rest)?;
-    let (rest, public_key) = parse_string(rest)?;
-    let (_, signature) = parse_string(rest)?;
-
-    Ok((host_key, public_key, signature))
-}
-
-/// Parses a `SSH_MSG_KEX_ECDH_INIT` packet.
-fn parse_ecdh_init(message: &[u8]) -> Result<&[u8], ParseError> {
-    let (rest, tag) = parse_byte(message)?;
-
-    if tag != SSH_MSG_KEX_ECDH_INIT {
-        return Err(ParseError::Invalid);
+    #[derive(Default)]
+    struct MsgKexEcdhReply {
+        byte     {SSH_MSG_KEX_ECDH_REPLY}
+        string   server_host_key
+        string   server_public_key
+        string   exchange_hash_signature
     }
-
-    let (_, public_key) = parse_string(rest)?;
-
-    Ok(public_key)
 }

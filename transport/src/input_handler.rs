@@ -5,7 +5,7 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 
 use crate::{
     constants::READ_SIZE,
-    errors::{CommunicationError, ParseError},
+    errors::{CommunicationError, ParseError, ParseIncomingPacketError},
     parser::ParserInputStream,
     runtime_state::RuntimeState,
     version::VersionInformation,
@@ -67,13 +67,15 @@ impl<Input: InputStream> InputHandler<Input> {
 
                     break Ok(res);
                 }
-                Err(ParseError::Incomplete) => {
+                Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete)) => {
                     self.read_more_data().await?;
 
                     continue;
                 }
-                Err(ParseError::Invalid) => break Err(CommunicationError::InvalidFormat),
-                Err(ParseError::InvalidMac) => unreachable!(),
+                Err(ParseIncomingPacketError::ParseError(ParseError::Invalid)) => {
+                    break Err(CommunicationError::InvalidFormat)
+                }
+                Err(ParseIncomingPacketError::InvalidMac) => unreachable!(),
             }
         }
     }
@@ -103,7 +105,7 @@ impl<Input: InputStream> InputHandler<Input> {
             .packet_parser
             .is_packet_ready(algorithms.encryption, mac_len, self.sequence_number)
             .map_err(|err| match err {
-                ParseError::InvalidMac => CommunicationError::InvalidMac,
+                ParseIncomingPacketError::InvalidMac => CommunicationError::InvalidMac,
                 _ => unreachable!(),
             })?
         {
@@ -117,9 +119,11 @@ impl<Input: InputStream> InputHandler<Input> {
             self.sequence_number,
         ) {
             Ok(parsed_packet) => Ok(parsed_packet),
-            Err(ParseError::Invalid) => Err(CommunicationError::InvalidFormat),
-            Err(ParseError::InvalidMac) => Err(CommunicationError::InvalidMac),
-            Err(ParseError::Incomplete) => unreachable!(),
+            Err(ParseIncomingPacketError::ParseError(ParseError::Invalid)) => {
+                Err(CommunicationError::InvalidFormat)
+            }
+            Err(ParseIncomingPacketError::InvalidMac) => Err(CommunicationError::InvalidMac),
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete)) => unreachable!(),
         }?;
 
         self.sequence_number = self.sequence_number.wrapping_add(1);

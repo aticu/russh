@@ -4,8 +4,7 @@
 
 use russh_definitions::{
     algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm},
-    writer_primitives::{write_byte, write_uint32},
-    CryptoRngCore,
+    write, CryptoRngCore,
 };
 use std::{
     cmp::{max, min},
@@ -96,8 +95,8 @@ impl WriterOutputStream {
 
     /// Writes the header of the packet.
     fn write_header(&mut self, packet_len: u32, padding_len: u8) {
-        write_uint32(packet_len, &mut self.data).expect("vec write cannot error");
-        write_byte(padding_len, &mut self.data).expect("vec write cannot error");
+        write::uint32(packet_len, &mut self.data).expect("vec write cannot error");
+        write::byte(padding_len, &mut self.data).expect("vec write cannot error");
     }
 
     /// Writes the payload of the packet.

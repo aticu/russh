@@ -2,7 +2,7 @@
 
 pub use russh_definitions::{
     algorithms::{AlgorithmCategory, AlgorithmRole, KeyExchangeAlgorithmError},
-    parser_primitives::ParseError,
+    ParseError,
 };
 
 use std::{error::Error, io};
@@ -185,4 +185,15 @@ pub enum InvalidNameError {
     /// The domain in the algorithm name is not a valid domain.
     #[error("algorithm name contained an invalid domain")]
     InvalidDomain,
+}
+
+/// Describes errors that can occur while parsing a received packet.
+#[derive(Debug, PartialEq, Eq, Clone, thiserror::Error)]
+pub enum ParseIncomingPacketError {
+    /// The packet could not be parsed.
+    #[error("the packet could not be parsed")]
+    ParseError(#[from] ParseError),
+    /// The packet had an invalid MAC.
+    #[error("the packet had an invalid MAC")]
+    InvalidMac,
 }

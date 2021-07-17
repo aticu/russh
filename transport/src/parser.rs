@@ -2,14 +2,21 @@
 //!
 //! This is the counter part to the `writer` module.
 
-use russh_definitions::algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm};
+use russh_definitions::{
+    algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm},
+    ParsedValue,
+};
 use std::cmp::{max, min};
 
 use self::{
     initialization::parse_initialization,
     unencrypted_packet::{parse_unencrypted_packet, parse_unencrypted_packet_length},
 };
-use crate::{constants::PACKET_LEN_SIZE, errors::ParseError, version::VersionInformation};
+use crate::{
+    constants::PACKET_LEN_SIZE,
+    errors::{ParseError, ParseIncomingPacketError},
+    version::VersionInformation,
+};
 
 pub(crate) use self::unencrypted_packet::ParsedPacket;
 
@@ -82,26 +89,26 @@ impl ParserInputStream {
     /// This should not be called again, after the first `Ok(_)` was returned.
     pub(crate) fn parse_initialization(
         &mut self,
-    ) -> Result<(VersionInformation, Vec<u8>), ParseError> {
+    ) -> Result<(VersionInformation, Vec<u8>), ParseIncomingPacketError> {
         debug_assert_eq!(self.parsed_until, 0);
         debug_assert_eq!(self.decrypted_until, 0);
 
-        let (rest_data, info) = parse_initialization(&self.data[..self.initialized_until])
-            .map_err(|err| match err {
-                nom::Err::Incomplete(_) => ParseError::Incomplete,
-                _ => ParseError::Invalid,
-            })?;
-
-        // This seems to be the best way to calculate the offset a slice (`self.data`) and its
-        // subslice (`rest_data`). There also exists a `sublice_index` crate which performs this
-        // exact calculation, but adding another dependency for this one use case is probably not
-        // worth it.
-        let bytes_read = rest_data.as_ptr() as usize - self.data.as_ptr() as usize;
+        let ParsedValue {
+            value: (info, line, bytes_read),
+            ..
+        } = parse_initialization(&self.data[..self.initialized_until]).map_err(
+            |err| match err {
+                ParseError::Incomplete => {
+                    ParseIncomingPacketError::ParseError(ParseError::Incomplete)
+                }
+                _ => ParseIncomingPacketError::ParseError(ParseError::Invalid),
+            },
+        )?;
 
         self.parsed_until = bytes_read;
         self.decrypted_until = bytes_read;
 
-        Ok((info.0, info.1.to_vec()))
+        Ok((info, line.to_vec()))
     }
 
     /// Advances the decryption of data to the index `to`.
@@ -114,7 +121,7 @@ impl ParserInputStream {
         to: usize,
         algorithm: &mut dyn EncryptionAlgorithm,
         packet_sequence_number: u32,
-    ) -> Result<bool, ParseError> {
+    ) -> Result<bool, ParseIncomingPacketError> {
         #[cfg(debug_assertions)]
         self.assert_valid_state();
 
@@ -130,7 +137,7 @@ impl ParserInputStream {
         if algorithm.mac_size().is_some() {
             match algorithm.authenticated_decrypt_packet(context) {
                 Some(decrypted_bytes) => self.decrypted_until += decrypted_bytes,
-                None => return Err(ParseError::InvalidMac),
+                None => return Err(ParseIncomingPacketError::InvalidMac),
             }
         } else {
             self.decrypted_until += algorithm.decrypt_packet(context);
@@ -140,13 +147,15 @@ impl ParserInputStream {
     }
 
     /// Parses the length of the current packet.
-    fn parse_packet_length(&self) -> Result<usize, ParseError> {
+    fn parse_packet_length(&self) -> Result<usize, ParseIncomingPacketError> {
         #[cfg(debug_assertions)]
         self.assert_valid_state();
         debug_assert!(self.decrypted_until >= self.parsed_until + PACKET_LEN_SIZE);
 
-        let (_, packet_length) =
-            parse_unencrypted_packet_length(&self.data[self.parsed_until..self.decrypted_until])?;
+        let ParsedValue {
+            value: packet_length,
+            ..
+        } = parse_unencrypted_packet_length(&self.data[self.parsed_until..self.decrypted_until])?;
 
         Ok(packet_length as usize)
     }
@@ -157,7 +166,7 @@ impl ParserInputStream {
         dec_algorithm: &mut dyn EncryptionAlgorithm,
         mac_len: usize,
         packet_sequence_number: u32,
-    ) -> Result<bool, ParseError> {
+    ) -> Result<bool, ParseIncomingPacketError> {
         #[cfg(debug_assertions)]
         self.assert_valid_state();
 
@@ -172,7 +181,9 @@ impl ParserInputStream {
             ) {
                 Ok(true) => continue,
                 Ok(false) => return Ok(false),
-                Err(ParseError::InvalidMac) => return Err(ParseError::InvalidMac),
+                Err(ParseIncomingPacketError::InvalidMac) => {
+                    return Err(ParseIncomingPacketError::InvalidMac)
+                }
                 Err(_) => unreachable!(),
             }
         }
@@ -195,7 +206,9 @@ impl ParserInputStream {
             ) {
                 Ok(true) => continue,
                 Ok(false) => return Ok(false),
-                Err(ParseError::InvalidMac) => return Err(ParseError::InvalidMac),
+                Err(ParseIncomingPacketError::InvalidMac) => {
+                    return Err(ParseIncomingPacketError::InvalidMac)
+                }
                 Err(_) => unreachable!(),
             }
         }
@@ -211,12 +224,12 @@ impl ParserInputStream {
         mac_algorithm: Option<&mut dyn MacAlgorithm>,
         mac_len: usize,
         packet_sequence_number: u32,
-    ) -> Result<ParsedPacket<'a>, ParseError> {
+    ) -> Result<ParsedPacket<'a>, ParseIncomingPacketError> {
         #[cfg(debug_assertions)]
         self.assert_valid_state();
 
         if !self.is_packet_ready(dec_algorithm, mac_len, packet_sequence_number)? {
-            return Err(ParseError::Incomplete);
+            return Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete));
         }
 
         let packet_length = self
@@ -225,11 +238,11 @@ impl ParserInputStream {
 
         let packet_end = self.parsed_until + PACKET_LEN_SIZE + packet_length + mac_len;
 
-        let (_, packet) =
+        let ParsedValue { value: packet, .. } =
             parse_unencrypted_packet(&self.data[self.parsed_until..packet_end], mac_len).map_err(
                 |err| match err {
                     ParseError::Incomplete => unreachable!(),
-                    _ => ParseError::Invalid,
+                    _ => ParseIncomingPacketError::ParseError(ParseError::Invalid),
                 },
             )?;
 
@@ -238,7 +251,7 @@ impl ParserInputStream {
 
         if let Some(mac_algorithm) = mac_algorithm {
             if !mac_algorithm.verify(packet.whole_packet, packet_sequence_number, packet.mac) {
-                return Err(ParseError::InvalidMac);
+                return Err(ParseIncomingPacketError::InvalidMac);
             }
         }
 
@@ -333,7 +346,7 @@ mod tests {
 
         assert_eq!(
             input_stream.parse_packet(&mut dec_algorithm, None, 0, 0),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
         assert_eq!(input_stream.parsed_until, 0);
         assert_eq!(input_stream.decrypted_until, 10);
@@ -348,7 +361,7 @@ mod tests {
 
         assert_eq!(
             input_stream.parse_packet(&mut dec_algorithm, None, 0, 0),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
         assert_eq!(input_stream.parsed_until, 0);
         assert_eq!(input_stream.decrypted_until, 16);
@@ -391,7 +404,7 @@ mod tests {
 
         assert_eq!(
             input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
         assert_eq!(input_stream.parsed_until, 0);
         assert_eq!(input_stream.decrypted_until, 4);
@@ -429,7 +442,7 @@ mod tests {
         );
         assert_eq!(
             input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
 
         assert_eq!(input_stream.initialized_until, input_stream.data.len());
@@ -445,7 +458,7 @@ mod tests {
         );
         assert_eq!(
             input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
     }
 
@@ -466,7 +479,7 @@ mod tests {
 
         assert_eq!(
             input_stream.parse_initialization(),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
         assert_eq!(input_stream.parsed_until, 0);
         assert_eq!(input_stream.decrypted_until, 0);
@@ -481,7 +494,7 @@ mod tests {
 
         assert_eq!(
             input_stream.parse_initialization(),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
         assert_eq!(input_stream.parsed_until, 0);
         assert_eq!(input_stream.decrypted_until, 0);
@@ -534,7 +547,7 @@ mod tests {
         );
         assert_eq!(
             input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
 
         input_stream.remove_old_data();
@@ -548,7 +561,7 @@ mod tests {
         );
         assert_eq!(
             input_stream.parse_packet(&mut dec_algorithm, None, 0, 1),
-            Err(ParseError::Incomplete)
+            Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete))
         );
     }
 }

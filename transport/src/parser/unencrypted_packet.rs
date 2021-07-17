@@ -1,7 +1,6 @@
 //! Allows for parsing of unencrypted packets.
 
-use nom::bytes::streaming::take;
-use russh_definitions::parser_primitives::{parse_byte, parse_uint32, ParseResult};
+use russh_definitions::{parse, ParsedValue};
 
 use crate::errors::ParseError;
 
@@ -23,37 +22,52 @@ pub(crate) struct ParsedPacket<'data> {
 }
 
 /// Parses the already unencrypted packet length.
-pub(in crate::parser) fn parse_unencrypted_packet_length(input: &[u8]) -> ParseResult<u32> {
-    parse_uint32(input)
+pub(in crate::parser) fn parse_unencrypted_packet_length(input: &[u8]) -> parse::Result<u32> {
+    parse::uint32(input)
 }
 
 /// Parses an already unencrypted packet.
 pub(in crate::parser) fn parse_unencrypted_packet(
     input: &[u8],
     mac_length: usize,
-) -> ParseResult<ParsedPacket> {
-    let (rest_input, packet_length) = parse_uint32(input)?;
-    let (rest_input, padding_length) = parse_byte(rest_input)?;
+) -> parse::Result<ParsedPacket> {
+    let ParsedValue {
+        value: packet_length,
+        rest_input,
+    } = parse::uint32(input)?;
+    let ParsedValue {
+        value: padding_length,
+        rest_input,
+    } = parse::byte(rest_input)?;
 
     if packet_length < 12 || padding_length < 4 || packet_length < padding_length as u32 + 1 {
         return Err(ParseError::Invalid);
     }
 
     let payload_length = packet_length - padding_length as u32 - 1;
-    let (rest_input, payload) = take(payload_length)(rest_input)?;
-    let (rest_input, padding) = take(padding_length)(rest_input)?;
-
-    let (rest_input, mac) = take(mac_length)(rest_input)?;
-
-    Ok((
+    let ParsedValue {
+        value: payload,
         rest_input,
-        ParsedPacket {
+    } = parse::bytes(rest_input, payload_length as usize)?;
+    let ParsedValue {
+        value: padding,
+        rest_input,
+    } = parse::bytes(rest_input, padding_length as usize)?;
+
+    let ParsedValue {
+        value: mac,
+        rest_input,
+    } = parse::bytes(rest_input, mac_length)?;
+
+    Ok(ParsedValue {
+        value: ParsedPacket {
             payload,
             padding,
             whole_packet: &input[..(4 + packet_length) as usize],
             mac,
         },
-    ))
+        rest_input,
+    })
 }
 
 #[cfg(test)]
@@ -65,11 +79,17 @@ mod tests {
     fn unencrypted_packet_length() {
         assert_eq!(
             parse_unencrypted_packet_length(&[0x00, 0x00, 0x00, 0x30]),
-            Ok((&[][..], 0x30))
+            Ok(ParsedValue {
+                value: 0x30,
+                rest_input: &[]
+            })
         );
         assert_eq!(
             parse_unencrypted_packet_length(&[0x10, 0x02, 0x30, 0x04]),
-            Ok((&[][..], 0x10023004))
+            Ok(ParsedValue {
+                value: 0x10023004,
+                rest_input: &[]
+            })
         );
 
         assert_eq!(
@@ -89,9 +109,8 @@ mod tests {
                 ],
                 4
             ),
-            Ok((
-                &[][..],
-                ParsedPacket {
+            Ok(ParsedValue {
+                value: ParsedPacket {
                     payload: b"testpayload",
                     padding: &[0x73, 0xae, 0xf8, 0x03, 0x7d, 0x38, 0x91, 0x10],
                     whole_packet: &[
@@ -99,8 +118,9 @@ mod tests {
                         b'l', b'o', b'a', b'd', 0x73, 0xae, 0xf8, 0x03, 0x7d, 0x38, 0x91, 0x10
                     ],
                     mac: &[0x01, 0x02, 0x03, 0x04]
-                }
-            ))
+                },
+                rest_input: &[],
+            })
         );
         assert_eq!(
             parse_unencrypted_packet(
@@ -113,9 +133,8 @@ mod tests {
                 ],
                 0
             ),
-            Ok((
-                &[0x01, 0x02, 0x03][..],
-                ParsedPacket {
+            Ok(ParsedValue {
+                value: ParsedPacket {
                     payload: b"some more testing data as payload",
                     padding: &[
                         0x55, 0x73, 0xfd, 0xca, 0x8e, 0x16, 0x4b, 0x8f, 0x03, 0x2f, 0x83, 0x91,
@@ -129,8 +148,9 @@ mod tests {
                         0x83, 0x91, 0xa7, 0x35, 0x8f, 0xad, 0x74, 0x44
                     ],
                     mac: &[]
-                }
-            ))
+                },
+                rest_input: &[0x01, 0x02, 0x03],
+            })
         );
         assert_eq!(
             parse_unencrypted_packet(
@@ -140,9 +160,8 @@ mod tests {
                 ],
                 0
             ),
-            Ok((
-                &[][..],
-                ParsedPacket {
+            Ok(ParsedValue {
+                value: ParsedPacket {
                     payload: b"",
                     padding: &[0xd3, 0x00, 0x76, 0xbe, 0x13, 0xfe, 0xee, 0x1a, 0x98, 0x7a, 0x03],
                     whole_packet: &[
@@ -150,8 +169,9 @@ mod tests {
                         0x1a, 0x98, 0x7a, 0x03
                     ],
                     mac: &[]
-                }
-            ))
+                },
+                rest_input: &[],
+            })
         );
 
         assert_eq!(

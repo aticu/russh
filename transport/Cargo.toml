@@ -14,7 +14,6 @@ default-algorithms = ["russh-algorithms"]
 [dependencies]
 russh-definitions = { path = "../definitions" }
 russh-algorithms = { path = "../algorithms", optional = true }
-nom = "6.2"
 num-bigint = "0.4"
 tokio = { version = "0.2", features = ["io-util"] }
 rand = "0.7"

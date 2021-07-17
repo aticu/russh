@@ -3,11 +3,8 @@
 use rand::Rng;
 use russh_definitions::{
     algorithms::{AlgorithmCategory, AlgorithmDirection, AlgorithmRole, KeyExchangeData},
-    message_numbers::{SSH_MSG_NEWKEYS, SSH_MSG_SERVICE_ACCEPT, SSH_MSG_SERVICE_REQUEST},
-    message_type::MessageType,
-    parser_primitives::{parse_byte, parse_string},
-    writer_primitives::{write_byte, write_string},
-    ConnectionRole,
+    consts::{MessageType, SSH_MSG_NEWKEYS, SSH_MSG_SERVICE_ACCEPT, SSH_MSG_SERVICE_REQUEST},
+    parse, write, ConnectionRole, ParsedValue,
 };
 use std::borrow::Cow;
 
@@ -147,7 +144,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(err))?
             .to_vec();
-        let kex::KexInitPacket {
+        let kex::KexinitPacket {
             cookie: _,
             algorithm_list: other_list,
             // TODO: Handle guessed packages (first_kex_packet_follows)
@@ -257,7 +254,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         let mut local_cookie: [u8; 16] = Default::default();
         self.runtime_state.rng().fill(&mut local_cookie[..]);
 
-        let local_kexinit = kex::KexInitPacket {
+        let local_kexinit = kex::KexinitPacket {
             cookie: local_cookie,
             algorithm_list: self.runtime_state.algorithm_list().clone(),
             first_kex_packet_follows: false,
@@ -283,8 +280,8 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
     ) -> Result<(), ServiceRequestError> {
         let mut packet = Vec::new();
 
-        write_byte(SSH_MSG_SERVICE_REQUEST, &mut packet).expect("vec writes don't fail");
-        write_string(service, &mut packet).expect("vec writes don't fail");
+        write::byte(SSH_MSG_SERVICE_REQUEST, &mut packet).expect("vec writes don't fail");
+        write::string(service, &mut packet).expect("vec writes don't fail");
 
         self.output_handler
             .send_packet(&packet, &mut self.runtime_state)
@@ -300,15 +297,17 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
 
         // TODO: possibly handle other packets in between, like SSG_MSG_IGNORE (this also applies
         // to other places)
-        let (rest_answer, code) =
-            parse_byte(&answer).map_err(|_| ServiceRequestError::InvalidFormat)?;
+        let ParsedValue {
+            value: code,
+            rest_input: rest_answer,
+        } = parse::byte(&answer).map_err(|_| ServiceRequestError::InvalidFormat)?;
 
         if code != SSH_MSG_SERVICE_ACCEPT {
             return Err(ServiceRequestError::InvalidFormat);
         }
 
-        let (_, name) =
-            parse_string(rest_answer).map_err(|_| ServiceRequestError::InvalidFormat)?;
+        let ParsedValue { value: name, .. } =
+            parse::string(rest_answer).map_err(|_| ServiceRequestError::InvalidFormat)?;
 
         if name == service {
             Ok(())

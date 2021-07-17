@@ -1,7 +1,7 @@
 //! Implements the key expansions for the encryption and MAC algorithms.
 
 use num_bigint::BigInt;
-use russh_definitions::{algorithms::KeyExchangeHashFunction, writer_primitives::write_mpint};
+use russh_definitions::{algorithms::KeyExchangeHashFunction, write};
 
 /// References the buffers where the keys are generated.
 pub(super) struct Keys<'a> {
@@ -34,7 +34,7 @@ pub(super) fn expand_keys(
     let (letter_offset, mut initial_key_vec) = {
         let mut key_vec = Vec::new();
 
-        write_mpint(shared_secret, &mut key_vec).expect("vec writes cannot fail");
+        write::mpint(shared_secret, &mut key_vec).expect("vec writes cannot fail");
         key_vec.reserve_exact(exchange_hash.len() + 1 + session_id.len());
         key_vec.extend(exchange_hash);
 
@@ -89,7 +89,7 @@ pub(super) fn expand_key(
     let key_vec = expanded_key_vec.get_or_insert_with(|| {
         let mut vec = Vec::new();
 
-        write_mpint(shared_secret, &mut vec).expect("vec writes cannot fail");
+        write::mpint(shared_secret, &mut vec).expect("vec writes cannot fail");
         vec.extend(exchange_hash);
 
         vec
