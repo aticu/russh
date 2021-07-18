@@ -32,11 +32,19 @@ pub enum ConnectionRole {
 
 impl ConnectionRole {
     /// The other role that is participating in the connection.
-    pub fn other(&self) -> ConnectionRole {
+    pub fn other(self) -> ConnectionRole {
         match self {
             ConnectionRole::Server => ConnectionRole::Client,
             ConnectionRole::Client => ConnectionRole::Server,
         }
+    }
+}
+
+impl std::ops::Not for ConnectionRole {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        self.other()
     }
 }
 
