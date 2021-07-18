@@ -4,7 +4,7 @@
 
 use russh_definitions::{
     algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm},
-    ParsedValue,
+    parse, ParsedValue,
 };
 use std::cmp::{max, min};
 
@@ -238,19 +238,22 @@ impl ParserInputStream {
 
         let packet_end = self.parsed_until + PACKET_LEN_SIZE + packet_length + mac_len;
 
-        let ParsedValue { value: packet, .. } =
-            parse_unencrypted_packet(&self.data[self.parsed_until..packet_end], mac_len).map_err(
-                |err| match err {
-                    ParseError::Incomplete => unreachable!(),
-                    _ => ParseIncomingPacketError::ParseError(ParseError::Invalid),
-                },
-            )?;
+        let ParsedValue {
+            value: packet,
+            rest_input,
+        } = parse_unencrypted_packet(&self.data[self.parsed_until..packet_end]).map_err(|err| {
+            match err {
+                ParseError::Incomplete => unreachable!(),
+                _ => ParseIncomingPacketError::ParseError(ParseError::Invalid),
+            }
+        })?;
+        let ParsedValue { value: mac, .. } = parse::bytes(rest_input, mac_len)?;
 
         self.decrypted_until += mac_len;
         self.parsed_until = self.decrypted_until;
 
         if let Some(mac_algorithm) = mac_algorithm {
-            if !mac_algorithm.verify(packet.whole_packet, packet_sequence_number, packet.mac) {
+            if !mac_algorithm.verify(packet.whole_packet, packet_sequence_number, mac) {
                 return Err(ParseIncomingPacketError::InvalidMac);
             }
         }
@@ -389,7 +392,6 @@ mod tests {
                     0x73, 0xfd, 0xca, 0x8e, 0x16, 0x4b, 0x8f, 0x03, 0x2f, 0x83, 0x91, 0xa7, 0x35,
                     0x8f, 0xad, 0x74, 0x44
                 ],
-                mac: &[]
             })
         );
         assert_eq!(input_stream.parsed_until, 56);
@@ -430,7 +432,6 @@ mod tests {
                     0x00, 0x00, 0x00, 0x14, 0x08, b't', b'e', b's', b't', b'p', b'a', b'y', b'l',
                     b'o', b'a', b'd', 0x73, 0xae, 0xf8, 0x03, 0x7d, 0x38, 0x91, 0x10
                 ],
-                mac: &[]
             })
         );
         assert_eq!(input_stream.parsed_until, 24);
@@ -535,7 +536,6 @@ mod tests {
                     0x00, 0x00, 0x00, 0x14, 0x08, b't', b'e', b's', b't', b'p', b'a', b'y', b'l',
                     b'o', b'a', b'd', 0x73, 0xae, 0xf8, 0x03, 0x7d, 0x38, 0x91, 0x10
                 ],
-                mac: &[]
             })
         );
         assert_eq!(input_stream.parsed_until, packet_data.len());
