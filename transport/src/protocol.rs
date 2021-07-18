@@ -59,9 +59,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
     }
 
     /// Receives the next packet that will be sent to the user.
-    pub(crate) async fn next_user_packet<'a>(
-        &'a mut self,
-    ) -> Result<Cow<'a, [u8]>, CommunicationError> {
+    pub(crate) async fn next_user_packet(&mut self) -> Result<Cow<'_, [u8]>, CommunicationError> {
         let packet = self
             .input_handler
             .next_packet(&mut self.runtime_state)
@@ -104,7 +102,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         let (version_info, identification_string) = input_handler
             .initialize()
             .await
-            .map_err(|err| InitializationError::Communication(err))?;
+            .map_err(InitializationError::Communication)?;
         if version_info.protocol_version() != "2.0" {
             return Err(InitializationError::UnsupportedProtocolVersion(
                 version_info,
@@ -142,7 +140,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             .input_handler
             .next_packet(&mut self.runtime_state)
             .await
-            .map_err(|err| KeyExchangeProcedureError::Communication(err))?
+            .map_err(KeyExchangeProcedureError::Communication)?
             .to_vec();
         let kex::KexinitPacket {
             cookie: _,
@@ -224,9 +222,9 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             .input_handler
             .next_packet(&mut self.runtime_state)
             .await
-            .map_err(|err| KeyExchangeProcedureError::Communication(err))?;
+            .map_err(KeyExchangeProcedureError::Communication)?;
 
-        if &answer[..] != &[SSH_MSG_NEWKEYS][..] {
+        if answer[..] != [SSH_MSG_NEWKEYS][..] {
             return Err(KeyExchangeProcedureError::NoNewkeysPacket);
         }
 
@@ -293,7 +291,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             .input_handler
             .next_packet(&mut self.runtime_state)
             .await
-            .map_err(|e| ServiceRequestError::Communication(e))?;
+            .map_err(ServiceRequestError::Communication)?;
 
         // TODO: possibly handle other packets in between, like SSG_MSG_IGNORE (this also applies
         // to other places)

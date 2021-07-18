@@ -100,7 +100,7 @@ pub(super) fn expand_key(
     key_vec.extend(&key[..]);
 
     while key.len() < len {
-        let hash = hash_fn(&key_vec);
+        let hash = hash_fn(key_vec);
         key.extend(&hash);
         key_vec.extend(&hash);
     }

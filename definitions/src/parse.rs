@@ -61,7 +61,7 @@ pub fn bytes(input: &[u8], n: usize) -> Result<&[u8]> {
         Err(ParseError::Incomplete)
     } else {
         Ok(ParsedValue {
-            value: (&input[..n]).into(),
+            value: &input[..n],
             rest_input: &input[n..],
         })
     }
@@ -205,11 +205,9 @@ pub fn mpint(input: &[u8]) -> Result<num_bigint::BigInt> {
     } = string(input)?;
 
     if string.len() > 1 {
-        if string[0] == 0 && (string[1] & 0x80) == 0 {
-            // Unnecessary 0 byte
-            return Err(ParseError::Invalid);
-        } else if string[0] == 0xff && (string[1] & 0x80) == 0x80 {
-            // Unnecessary 0xff byte
+        let unnecessary_00_byte = string[0] == 0x00 && (string[1] & 0x80) == 0;
+        let unnecessary_ff_byte = string[0] == 0xff && (string[1] & 0x80) > 0;
+        if unnecessary_00_byte || unnecessary_ff_byte {
             return Err(ParseError::Invalid);
         }
     }
@@ -247,7 +245,7 @@ where
         rest_input,
     } = string(input)?;
 
-    if string.len() > 0 && (string[0] == b',' || string[string.len() - 1] == b',') {
+    if !string.is_empty() && (string[0] == b',' || string[string.len() - 1] == b',') {
         // No empty item should be in the list (i.e. no comma at start or end of list)
         return Err(ParseError::Invalid);
     }
@@ -266,7 +264,7 @@ where
         }
     }
 
-    if string.len() == 0 {
+    if string.is_empty() {
         Ok(ParsedValue {
             value: vec![],
             rest_input,

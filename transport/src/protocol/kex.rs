@@ -65,7 +65,7 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
         let answer = input_handler
             .next_packet(runtime_state)
             .await
-            .map_err(|err| KeyExchangeProcedureError::Communication(err))?;
+            .map_err(KeyExchangeProcedureError::Communication)?;
 
         if MessageType::from_message(&answer) != Some(MessageType::KeyExchangeMethodSpecific) {
             return Err(KeyExchangeProcedureError::NonKeyExchangePacketReceived);
@@ -200,7 +200,7 @@ pub(in crate::protocol) fn negotiate_algorithm(
     let own_kex_list = &own_list.kex;
     let other_kex_list = &other_list.kex;
 
-    if own_kex_list.len() == 0 || other_kex_list.len() == 0 {
+    if own_kex_list.is_empty() || other_kex_list.is_empty() {
         return Err(KeyExchangeProcedureError::NoAlgorithmFound(AlgorithmRole(
             AlgorithmCategory::KeyExchange,
             None,

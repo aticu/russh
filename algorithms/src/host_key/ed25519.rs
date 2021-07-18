@@ -30,7 +30,7 @@ const PUBLIC_KEY_PREFIX: &[u8] = b"\x00\x00\x00\x0bssh-ed25519\x00\x00\x00\x20";
 /// Implements the `ssh-ed25519` host key algorithm.
 ///
 /// The existence of this struct is controlled by the `ssh-ed25519` feature.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Ed25519 {
     /// The keypair used to sign messages.
     keypair: Option<Keypair>,
@@ -93,7 +93,7 @@ impl HostKeyAlgorithm for Ed25519 {
     }
 
     fn load_keypair(&mut self, keypair: &[u8]) -> Result<(), Box<dyn Error>> {
-        let keypair = Keypair::from_bytes(keypair).map_err(|e| Ed25519SignatureError(e))?;
+        let keypair = Keypair::from_bytes(keypair).map_err(Ed25519SignatureError)?;
 
         let public_key = {
             let bytes = keypair.public.as_bytes();

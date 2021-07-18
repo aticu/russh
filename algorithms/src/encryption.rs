@@ -16,7 +16,7 @@ pub use self::aes_ctr::*;
 ///
 /// This is not a functional encryption algorithm, but is used
 /// instead of an encryption algorithm during key exchange.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 // This isn't a unit struct, to allow for future expansions of this.
 #[non_exhaustive]
 pub struct None {}
@@ -76,19 +76,14 @@ impl EncryptionAlgorithm for None {
 
 /// Returns all the encryption algorithms defined by this crate.
 pub fn algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
-    let mut result: Vec<Box<dyn EncryptionAlgorithm>> = Vec::new();
-
     // This is the same order used by OpenSSH
-    #[cfg(feature = "aes128-ctr")]
-    result.push(Aes128Ctr::boxed());
-
-    #[cfg(feature = "aes192-ctr")]
-    result.push(Aes192Ctr::boxed());
-
-    #[cfg(feature = "aes256-ctr")]
-    result.push(Aes256Ctr::boxed());
-
-    result.push(None::boxed());
-
-    result
+    vec![
+        #[cfg(feature = "aes128-ctr")]
+        Aes128Ctr::boxed(),
+        #[cfg(feature = "aes192-ctr")]
+        Aes192Ctr::boxed(),
+        #[cfg(feature = "aes256-ctr")]
+        Aes256Ctr::boxed(),
+        None::boxed(),
+    ]
 }

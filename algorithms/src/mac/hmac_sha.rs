@@ -20,7 +20,7 @@ macro_rules! impl_hmac_sha {
         #[doc = "The existence of this struct is controlled by the `"]
         #[doc = $name_str]
         #[doc = "` feature."]
-        #[derive(Debug)]
+        #[derive(Debug, Default)]
         pub struct $name {
             /// The key to use for the MAC computations.
             key: Option<SecStr>,

@@ -24,7 +24,7 @@ macro_rules! impl_aes_ctr {
         #[doc = "The existence of this struct is controlled by the `"]
         #[doc = $name_str]
         #[doc = "` feature."]
-        #[derive(Debug)]
+        #[derive(Debug, Default)]
         pub struct $name {
             /// Contains the algorithm implementation and the keys.
             ///

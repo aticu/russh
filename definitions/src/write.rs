@@ -143,7 +143,7 @@ pub fn mpint(input: &num_bigint::BigInt, output: &mut impl Write) -> io::Result<
         input.to_signed_bytes_be()
     };
 
-    string(&&vec[..], output)
+    string(&vec[..], output)
 }
 
 /// Writes a name-list to the output.
@@ -201,7 +201,7 @@ pub fn name_list<T: AsRef<str>>(input: &[T], output: &mut impl Write) -> io::Res
         if i != 0 {
             byte(b',', output)?;
         }
-        bytes(&s.as_ref().as_bytes(), output)?;
+        bytes(s.as_ref().as_bytes(), output)?;
     }
 
     Ok(())

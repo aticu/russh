@@ -8,7 +8,7 @@ use std::{borrow::Cow, error::Error};
 /// The compression algorithm that does not compress.
 ///
 /// This is used for sending uncompressed data.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 // This isn't a unit struct, to allow for future expansions of this.
 #[non_exhaustive]
 pub struct None {}
@@ -54,9 +54,5 @@ impl CompressionAlgorithm for None {
 
 /// Returns all the compression algorithms defined by this crate.
 pub fn algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
-    let mut result: Vec<Box<dyn CompressionAlgorithm>> = Vec::new();
-
-    result.push(None::boxed());
-
-    result
+    vec![None::boxed()]
 }

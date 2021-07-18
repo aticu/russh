@@ -7,13 +7,13 @@ use crate::errors::{InvalidAlgorithmError, InvalidNameError};
 /// Checks if the given domain name is valid.
 fn is_valid_domain(domain: &str) -> bool {
     for label in domain.split('.') {
-        if label.len() == 0 {
+        if label.is_empty() {
             return false;
         }
-        if label.chars().next() == Some('-') {
+        if label.starts_with('-') {
             return false;
         }
-        if label.chars().last() == Some('-') {
+        if label.ends_with('-') {
             return false;
         }
         if label

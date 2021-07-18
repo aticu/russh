@@ -16,6 +16,7 @@ use x25519_dalek::{EphemeralSecret, PublicKey};
 /// Implements the `curve25519-sha256` key exchange algorithm.
 ///
 /// The existence of this struct is controlled by the `curve25519-sha256` feature.
+#[derive(Default)]
 pub struct Curve25519Sha256 {
     /// The secret key used for the key exchange.
     secret: Option<EphemeralSecret>,
@@ -211,7 +212,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
                     .expect("hasher writes don't fail");
                 write::string(key_exchange_data.server_kexinit, &mut hasher)
                     .expect("hasher writes don't fail");
-                write::string(&host_key_algorithm.public_key(), &mut hasher)
+                write::string(host_key_algorithm.public_key(), &mut hasher)
                     .expect("hasher writes don't fail");
                 write::string(client_public.as_bytes(), &mut hasher)
                     .expect("hasher writes don't fail");
@@ -221,9 +222,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
 
                 let hash = hasher.result();
 
-                let mut signature = Vec::with_capacity(host_key_algorithm.signature_length());
-
-                signature.resize(host_key_algorithm.signature_length(), 0);
+                let mut signature = vec![0; host_key_algorithm.signature_length()];
 
                 host_key_algorithm.sign(&hash, &mut signature);
 

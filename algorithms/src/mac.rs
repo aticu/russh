@@ -21,7 +21,7 @@ pub use self::hmac_sha::*;
 ///
 /// This is not a functional MAC algorithm, but is used
 /// instead of a MAC algorithm during key exchange.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub struct None {}
 
@@ -78,19 +78,14 @@ impl MacAlgorithm for None {
 
 /// Returns all the MAC algorithms defined by this crate.
 pub fn algorithms() -> Vec<Box<dyn MacAlgorithm>> {
-    let mut result: Vec<Box<dyn MacAlgorithm>> = Vec::new();
-
     // This is the same order used by OpenSSH
-    #[cfg(feature = "hmac-sha2-256")]
-    result.push(HmacSha2256::boxed());
-
-    #[cfg(feature = "hmac-sha2-512")]
-    result.push(HmacSha2512::boxed());
-
-    #[cfg(feature = "hmac-sha1")]
-    result.push(HmacSha1::boxed());
-
-    result.push(None::boxed());
-
-    result
+    vec![
+        #[cfg(feature = "hmac-sha2-256")]
+        HmacSha2256::boxed(),
+        #[cfg(feature = "hmac-sha2-512")]
+        HmacSha2512::boxed(),
+        #[cfg(feature = "hmac-sha1")]
+        HmacSha1::boxed(),
+        None::boxed(),
+    ]
 }

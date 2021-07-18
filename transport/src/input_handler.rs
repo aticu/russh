@@ -41,11 +41,7 @@ impl<Input: InputStream> InputHandler<Input> {
     async fn read_more_data(&mut self) -> Result<usize, CommunicationError> {
         let buf = self.packet_parser.reserve(READ_SIZE);
 
-        let size = self
-            .input
-            .read(buf)
-            .await
-            .map_err(|err| CommunicationError::Io(err))?;
+        let size = self.input.read(buf).await.map_err(CommunicationError::Io)?;
 
         if size == 0 {
             return Err(CommunicationError::EndOfInput);
@@ -84,10 +80,10 @@ impl<Input: InputStream> InputHandler<Input> {
     ///
     /// # Note
     /// This will probably fail if `self.initialize` was not called previously.
-    pub(crate) async fn next_packet<'a>(
-        &'a mut self,
+    pub(crate) async fn next_packet(
+        &mut self,
         runtime_state: &mut RuntimeState,
-    ) -> Result<Cow<'a, [u8]>, CommunicationError> {
+    ) -> Result<Cow<'_, [u8]>, CommunicationError> {
         self.packet_parser.remove_old_data();
 
         let algorithms = runtime_state.input_algorithms();

@@ -75,7 +75,7 @@ impl<Input: InputStream, Output: OutputStream> fmt::Debug for Handler<Input, Out
 
 impl<Input: InputStream, Output: OutputStream> Handler<Input, Output> {
     /// Receives the next packet from the other party.
-    pub async fn next_packet<'a>(&'a mut self) -> Result<Cow<'a, [u8]>, CommunicationError> {
+    pub async fn next_packet(&mut self) -> Result<Cow<'_, [u8]>, CommunicationError> {
         self.protocol_handler.next_user_packet().await
     }
 
@@ -403,7 +403,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub async fn build(self) -> Result<Handler<Input, Output>, BuildError> {
         self.available_algorithms
             .all_algorithms_valid()
-            .map_err(|err| BuildError::InvalidAlgorithm(err))?;
+            .map_err(BuildError::InvalidAlgorithm)?;
 
         if let Some(role) = self.available_algorithms.empty_algorithm_role() {
             return Err(BuildError::EmptyAlgorithmRole(role));
@@ -427,7 +427,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             OutputHandler::new(self.output, self.padding_length_distribution),
         )
         .await
-        .map_err(|err| BuildError::Initialization(err))
+        .map_err(BuildError::Initialization)
         .map(|protocol_handler| Handler { protocol_handler })
     }
 }

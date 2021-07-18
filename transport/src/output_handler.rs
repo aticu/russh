@@ -120,7 +120,7 @@ impl<'o, Output: OutputStream> PacketFlusher<'o, Output> {
     pub async fn flush(self) -> io::Result<()> {
         let buf = self.packet_writer.written_data();
 
-        if buf.len() != 0 {
+        if !buf.is_empty() {
             self.output.write_all(buf).await?;
 
             let len = buf.len();
