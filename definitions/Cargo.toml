@@ -1,7 +1,6 @@
 [package]
 name = "russh-definitions"
 version = "0.1.0"
-authors = ["aticu <15schnic@gmail.com>"]
 license = "MIT/Apache-2.0"
 keywords = ["ssh", "network", "russh"]
 edition = "2018"
