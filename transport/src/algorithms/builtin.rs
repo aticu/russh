@@ -6,27 +6,27 @@ use crate::algorithms::{
 };
 
 /// Returns a list of all builtin key exchange algorithms.
-pub(crate) fn key_exchange_algorithms() -> Vec<Box<dyn KeyExchangeAlgorithm>> {
+pub(crate) fn key_exchange_algorithms() -> AlgorithmList<Box<dyn KeyExchangeAlgorithm>> {
+    let mut list = AlgorithmList::new();
+
     #[cfg(feature = "default-algorithms")]
-    {
-        russh_algorithms::key_exchange::algorithms()
-    }
-    #[cfg(not(feature = "default-algorithms"))]
-    {
-        Vec::new()
-    }
+    russh_algorithms::key_exchange::add_algorithms(|alg| {
+        list.add_raw(alg, AddIn::Back).unwrap();
+    });
+
+    list
 }
 
 /// Returns a list of all builtin host key algorithms.
-pub(crate) fn host_key_algorithms() -> Vec<Box<dyn HostKeyAlgorithm>> {
+pub(crate) fn host_key_algorithms() -> AlgorithmList<Box<dyn HostKeyAlgorithm>> {
+    let mut list = AlgorithmList::new();
+
     #[cfg(feature = "default-algorithms")]
-    {
-        russh_algorithms::host_key::algorithms()
-    }
-    #[cfg(not(feature = "default-algorithms"))]
-    {
-        Vec::new()
-    }
+    russh_algorithms::host_key::add_algorithms(|alg| {
+        list.add_raw(alg, AddIn::Back).unwrap();
+    });
+
+    list
 }
 
 /// Returns a list of all builtin encryption algorithms.

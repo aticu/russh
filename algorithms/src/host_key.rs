@@ -9,10 +9,13 @@ mod ed25519;
 #[doc(inline)]
 pub use self::ed25519::*;
 
-/// Returns all the host key algorithms defined by this crate.
-pub fn algorithms() -> Vec<Box<dyn HostKeyAlgorithm>> {
-    vec![
-        #[cfg(feature = "ssh-ed25519")]
-        Ed25519::boxed(),
-    ]
+/// Calls the `add` function with all host key algorithms defined and enabled in this crate.
+pub fn add_algorithms<Entry, F>(mut add: F)
+where
+    Box<dyn HostKeyAlgorithm>: Into<Entry>,
+    F: FnMut(Entry),
+{
+    // This is the same order used by OpenSSH
+    #[cfg(feature = "ssh-ed25519")]
+    add(Ed25519::boxed().into());
 }

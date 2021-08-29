@@ -4,10 +4,10 @@ use std::{borrow::Cow, cmp::max};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 use crate::{
+    algorithms::PacketAlgorithms,
     constants::READ_SIZE,
     errors::{CommunicationError, ParseError, ParseIncomingPacketError},
     parser::ParserInputStream,
-    runtime_state::RuntimeState,
     version::VersionInformation,
 };
 
@@ -82,11 +82,10 @@ impl<Input: InputStream> InputHandler<Input> {
     /// This will probably fail if `self.initialize` was not called previously.
     pub(crate) async fn next_packet(
         &mut self,
-        runtime_state: &mut RuntimeState,
+        algorithms: PacketAlgorithms<'_>,
     ) -> Result<Cow<'_, [u8]>, CommunicationError> {
         self.packet_parser.remove_old_data();
 
-        let algorithms = runtime_state.input_algorithms();
         let mac_len = algorithms
             .mac
             .as_ref()
@@ -145,14 +144,11 @@ impl<Input: InputStream> InputHandler<Input> {
 #[cfg(test)]
 mod tests {
     use num_bigint::BigInt;
-    use rand::SeedableRng;
-    use rand_chacha::ChaCha20Rng;
     use sha2::digest::Digest;
 
     use super::*;
     use crate::{
         algorithms::{ChosenAlgorithms, ConnectionAlgorithms},
-        runtime_state::RuntimeState,
         test_helpers::FakeNetworkInput,
         ConnectionRole,
     };
@@ -167,13 +163,7 @@ mod tests {
 
         let mut input_handler = InputHandler::new(fake_input);
 
-        let mut runtime_state = RuntimeState::new(
-            VersionInformation::new("test").unwrap(),
-            ConnectionAlgorithms::default(),
-            ConnectionRole::Client,
-            Box::new(ChaCha20Rng::from_seed(Default::default())),
-            true,
-        );
+        let mut connection_algorithms = ConnectionAlgorithms::default();
 
         let chosen_algorithms = ChosenAlgorithms {
             encryption_c2s: "none",
@@ -184,8 +174,9 @@ mod tests {
             compression_s2c: "none",
         };
 
-        runtime_state.change_algorithms(
-            chosen_algorithms,
+        connection_algorithms.unload_algorithm_keys();
+        connection_algorithms.load_algorithm_keys(
+            &chosen_algorithms,
             |message| sha2::Sha256::digest(message).to_vec(),
             &BigInt::from_signed_bytes_be(&[0x42; 16][..]),
             &[0x11; 16][..],
@@ -203,14 +194,22 @@ mod tests {
 
             assert_eq!(
                 input_handler
-                    .next_packet(&mut runtime_state)
+                    .next_packet(incoming_algorithms!(
+                        connection_algorithms,
+                        ConnectionRole::Client
+                    ))
                     .await
                     .expect("packet exists"),
                 b"testpayload".to_vec()
             );
 
             assert!(matches!(
-                input_handler.next_packet(&mut runtime_state).await,
+                input_handler
+                    .next_packet(incoming_algorithms!(
+                        connection_algorithms,
+                        ConnectionRole::Client
+                    ))
+                    .await,
                 Err(CommunicationError::EndOfInput)
             ));
         });
@@ -224,13 +223,7 @@ mod tests {
 
         let mut input_handler = InputHandler::new(fake_input);
 
-        let mut runtime_state = RuntimeState::new(
-            VersionInformation::new("test").unwrap(),
-            ConnectionAlgorithms::default(),
-            ConnectionRole::Client,
-            Box::new(ChaCha20Rng::from_seed(Default::default())),
-            true,
-        );
+        let mut connection_algorithms = ConnectionAlgorithms::default();
 
         futures::executor::block_on(async {
             assert_eq!(
@@ -243,7 +236,10 @@ mod tests {
 
             assert_eq!(
                 input_handler
-                    .next_packet(&mut runtime_state)
+                    .next_packet(incoming_algorithms!(
+                        connection_algorithms,
+                        ConnectionRole::Client
+                    ))
                     .await
                     .expect("packet exists"),
                 b"testpayload".to_vec()
@@ -251,14 +247,22 @@ mod tests {
 
             assert_eq!(
                 input_handler
-                    .next_packet(&mut runtime_state)
+                    .next_packet(incoming_algorithms!(
+                        connection_algorithms,
+                        ConnectionRole::Client
+                    ))
                     .await
                     .expect("packet exists"),
                 b"othertester".to_vec()
             );
 
             assert!(matches!(
-                input_handler.next_packet(&mut runtime_state).await,
+                input_handler
+                    .next_packet(incoming_algorithms!(
+                        connection_algorithms,
+                        ConnectionRole::Client
+                    ))
+                    .await,
                 Err(CommunicationError::EndOfInput)
             ));
         });
@@ -274,13 +278,7 @@ mod tests {
 
         let mut input_handler = InputHandler::new(fake_input);
 
-        let mut runtime_state = RuntimeState::new(
-            VersionInformation::default(),
-            ConnectionAlgorithms::default(),
-            ConnectionRole::Client,
-            Box::new(ChaCha20Rng::from_seed(Default::default())),
-            true,
-        );
+        let mut connection_algorithms = ConnectionAlgorithms::default();
 
         futures::executor::block_on(async {
             assert_eq!(
@@ -292,7 +290,12 @@ mod tests {
             );
 
             assert!(matches!(
-                input_handler.next_packet(&mut runtime_state).await,
+                input_handler
+                    .next_packet(incoming_algorithms!(
+                        connection_algorithms,
+                        ConnectionRole::Client
+                    ))
+                    .await,
                 Err(CommunicationError::InvalidFormat)
             ));
         });

@@ -124,10 +124,19 @@ impl<Entry: Nameable> AlgorithmList<Entry> {
         }
     }
 
-    /// Finds and returns the algorithm named `name`, if it exists in the list.
-    pub(crate) fn find_algorithm(&self, name: &str) -> Option<&Entry> {
+    /// Returns a reference to the algorithm named `name`, if it exists in the list.
+    pub(crate) fn algorithm(&self, name: &str) -> Option<&Entry> {
         if let Some(idx) = self.find_index(name) {
             Some(&self.list[idx])
+        } else {
+            None
+        }
+    }
+
+    /// Returns a mutable reference to the algorithm named `name`, if it exists in the list.
+    pub(crate) fn algorithm_mut(&mut self, name: &str) -> Option<&mut Entry> {
+        if let Some(idx) = self.find_index(name) {
+            Some(&mut self.list[idx])
         } else {
             None
         }

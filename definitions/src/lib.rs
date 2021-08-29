@@ -24,18 +24,26 @@ pub mod write;
 /// Determines which role the handler has in the connection.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ConnectionRole {
-    /// The code is acting as the server in the connection.
-    Server,
     /// The code is acting as the client in the connection.
     Client,
+    /// The code is acting as the server in the connection.
+    Server,
 }
 
 impl ConnectionRole {
     /// The other role that is participating in the connection.
     pub fn other(self) -> ConnectionRole {
         match self {
-            ConnectionRole::Server => ConnectionRole::Client,
             ConnectionRole::Client => ConnectionRole::Server,
+            ConnectionRole::Server => ConnectionRole::Client,
+        }
+    }
+
+    /// Picks the either the client or the server value depending on the role.
+    pub fn pick<T>(self, client: T, server: T) -> T {
+        match self {
+            ConnectionRole::Client => client,
+            ConnectionRole::Server => server,
         }
     }
 }

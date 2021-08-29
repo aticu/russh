@@ -15,15 +15,14 @@ use crate::{
     },
     input_handler::{InputHandler, InputStream},
     output_handler::{OutputHandler, OutputStream, PacketFlusher},
-    runtime_state::RuntimeState,
+    version::VersionInformation,
+    CryptoRngCore,
 };
 
 mod kex;
 
 /// Handles all protocol interactions at the transport layer level.
 pub(crate) struct ProtocolHandler<Input: InputStream, Output: OutputStream> {
-    /// The state that is used by the transport layer.
-    runtime_state: RuntimeState,
     /// The handler for the input to the transport layer.
     input_handler: InputHandler<Input>,
     /// The handler for the output of the transport layer.
@@ -35,6 +34,19 @@ pub(crate) struct ProtocolHandler<Input: InputStream, Output: OutputStream> {
     /// After the first key exchange (i.e. after a successful call to `ProtocolHandler::new`)
     /// this is always `Some(_)`.
     session_id: Option<Vec<u8>>,
+    /// The random number generator used for the connection.
+    rng: Box<dyn CryptoRngCore>,
+    /// The role of the handler in the connection.
+    connection_role: ConnectionRole,
+    /// The algorithms used by the SSH connection.
+    connection_algorithms: ConnectionAlgorithms,
+    /// The list of available algorithms.
+    ///
+    /// This exists to preverse the original algorithms order, while having the ability
+    /// to move algorithms out of the `ConnectionAlgorithms`.
+    algorithm_list: AlgorithmNameList<'static>,
+    /// The version information for the handler.
+    version_info: VersionInformation,
 }
 // TODO: Consider poisoning the handler if an error occurs during a critical operation
 
@@ -62,7 +74,10 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
     pub(crate) async fn next_user_packet(&mut self) -> Result<Cow<'_, [u8]>, CommunicationError> {
         let packet = self
             .input_handler
-            .next_packet(&mut self.runtime_state)
+            .next_packet(incoming_algorithms!(
+                self.connection_algorithms,
+                self.connection_role
+            ))
             .await?;
 
         // TODO: filter transport layer packets
@@ -81,40 +96,53 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         if Self::handles(data) {
             Err(CommunicationError::ProtocolInternalPacketSent)
         } else {
-            Ok(self
-                .output_handler
-                .send_packet(data, &mut self.runtime_state))
+            Ok(self.output_handler.send_packet(
+                data,
+                outgoing_algorithms!(self.connection_algorithms, self.connection_role),
+                &mut self.rng,
+            ))
         }
     }
 
     /// Initializes the connection up until the first key exchange is performed.
     pub(crate) async fn new(
-        runtime_state: RuntimeState,
         mut input_handler: InputHandler<Input>,
         mut output_handler: OutputHandler<Output>,
+        rng: Box<dyn CryptoRngCore>,
+        connection_role: ConnectionRole,
+        connection_algorithms: ConnectionAlgorithms,
+        allow_none_algorithms: bool,
+        version_info: VersionInformation,
     ) -> Result<Self, InitializationError> {
         output_handler
-            .initialize(runtime_state.local_version_info())
+            .initialize(&version_info)
             .flush()
             .await
             .map_err(|err| InitializationError::Communication(CommunicationError::Io(err)))?;
 
-        let (version_info, identification_string) = input_handler
+        let (other_version_info, identification_string) = input_handler
             .initialize()
             .await
             .map_err(InitializationError::Communication)?;
-        if version_info.protocol_version() != "2.0" {
+        if other_version_info.protocol_version() != "2.0" {
             return Err(InitializationError::UnsupportedProtocolVersion(
-                version_info,
+                other_version_info,
             ));
         }
 
+        let algorithm_list =
+            AlgorithmNameList::from_available(&connection_algorithms, allow_none_algorithms);
+
         let mut handler = ProtocolHandler {
-            runtime_state,
             input_handler,
             output_handler,
             other_identification_string: identification_string,
             session_id: None,
+            rng,
+            connection_role,
+            connection_algorithms,
+            algorithm_list,
+            version_info,
         };
 
         handler
@@ -138,7 +166,10 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
 
         let remote_kexinit = self
             .input_handler
-            .next_packet(&mut self.runtime_state)
+            .next_packet(incoming_algorithms!(
+                self.connection_algorithms,
+                self.connection_role
+            ))
             .await
             .map_err(KeyExchangeProcedureError::Communication)?
             .to_vec();
@@ -151,23 +182,20 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             KeyExchangeProcedureError::Communication(CommunicationError::InvalidFormat)
         })?;
 
-        let role = *self.runtime_state.connection_role();
+        let role = self.connection_role;
         // TODO: handle encryption and mac combining algorithms
 
-        let (kex_name, host_key_name, chosen_algorithms) =
-            negotiate_algorithms(&mut self.runtime_state, &other_list)?;
+        let chosen_algorithms = negotiate_algorithms(
+            self.connection_role,
+            &mut self.connection_algorithms,
+            &self.algorithm_list,
+            &other_list,
+        )?;
 
         let (hash_fn, kex_algorithm_result) = {
-            let mut key_exchange = self
-                .runtime_state
-                .key_exchange(kex_name, host_key_name)
-                .expect("chosen algorithms should exist in runtime state");
-            let (kex_algorithm, host_key_algorithm, mut runtime_state) = key_exchange.start();
+            let hash_fn = self.connection_algorithms.kex.current().hash_fn();
 
-            let hash_fn = kex_algorithm.hash_fn();
-
-            let local_identification_string =
-                format!("{}", runtime_state.local_version_info()).into_bytes();
+            let local_identification_string = format!("{}", &self.version_info).into_bytes();
             let (client_identification, server_identification) = match role {
                 ConnectionRole::Client => (
                     &local_identification_string,
@@ -192,10 +220,10 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             };
 
             let result = kex::algorithm_specific_exchange(
-                &mut *kex_algorithm,
-                &mut *host_key_algorithm,
                 &kex_data,
-                &mut runtime_state,
+                self.connection_role,
+                &mut self.connection_algorithms,
+                &mut self.rng,
                 &mut self.input_handler,
                 &mut self.output_handler,
             )
@@ -213,14 +241,21 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         let _ = host_key;
 
         self.output_handler
-            .send_packet(&[SSH_MSG_NEWKEYS], &mut self.runtime_state)
+            .send_packet(
+                &[SSH_MSG_NEWKEYS],
+                outgoing_algorithms!(self.connection_algorithms, self.connection_role),
+                &mut self.rng,
+            )
             .flush()
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
 
         let answer = self
             .input_handler
-            .next_packet(&mut self.runtime_state)
+            .next_packet(incoming_algorithms!(
+                self.connection_algorithms,
+                self.connection_role
+            ))
             .await
             .map_err(KeyExchangeProcedureError::Communication)?;
 
@@ -236,8 +271,9 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
 
         let session_id = self.session_id.as_ref().unwrap();
 
-        self.runtime_state.change_algorithms(
-            chosen_algorithms,
+        self.connection_algorithms.unload_algorithm_keys();
+        self.connection_algorithms.load_algorithm_keys(
+            &chosen_algorithms,
             hash_fn,
             &shared_secret,
             &exchange_hash,
@@ -250,11 +286,11 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
     /// Sends a `SSH_MSG_KEXINIT` to the partner.
     async fn send_kexinit_packet(&mut self) -> Result<Vec<u8>, KeyExchangeProcedureError> {
         let mut local_cookie: [u8; 16] = Default::default();
-        self.runtime_state.rng().fill(&mut local_cookie[..]);
+        self.rng.fill(&mut local_cookie[..]);
 
         let local_kexinit = kex::KexinitPacket {
             cookie: local_cookie,
-            algorithm_list: self.runtime_state.algorithm_list().clone(),
+            algorithm_list: self.algorithm_list.clone(),
             first_kex_packet_follows: false,
         };
 
@@ -263,7 +299,11 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             .expect("write operations on vec don't fail");
 
         self.output_handler
-            .send_packet(&local_kexinit_packet, &mut self.runtime_state)
+            .send_packet(
+                &local_kexinit_packet,
+                outgoing_algorithms!(self.connection_algorithms, self.connection_role),
+                &mut self.rng,
+            )
             .flush()
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
@@ -282,14 +322,21 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         write::string(service, &mut packet).expect("vec writes don't fail");
 
         self.output_handler
-            .send_packet(&packet, &mut self.runtime_state)
+            .send_packet(
+                &packet,
+                outgoing_algorithms!(self.connection_algorithms, self.connection_role),
+                &mut self.rng,
+            )
             .flush()
             .await
             .map_err(|e| ServiceRequestError::Communication(CommunicationError::Io(e)))?;
 
         let answer = self
             .input_handler
-            .next_packet(&mut self.runtime_state)
+            .next_packet(incoming_algorithms!(
+                self.connection_algorithms,
+                self.connection_role
+            ))
             .await
             .map_err(ServiceRequestError::Communication)?;
 
@@ -316,98 +363,79 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
 }
 
 /// Performs the algorithm negotiation.
-fn negotiate_algorithms<'a>(
-    runtime_state: &'a mut RuntimeState,
-    other_list: &AlgorithmNameList,
-) -> Result<(&'static str, &'static str, ChosenAlgorithms), KeyExchangeProcedureError> {
-    let own_list = runtime_state.algorithm_list();
-    let own_role = runtime_state.connection_role();
-    let available_algorithms = runtime_state.available_algorithms();
+fn negotiate_algorithms<'names>(
+    connection_role: ConnectionRole,
+    connection_algorithms: &mut ConnectionAlgorithms,
+    own_list: &'names AlgorithmNameList<'names>,
+    other_list: &'names AlgorithmNameList<'names>,
+) -> Result<ChosenAlgorithms<'names>, KeyExchangeProcedureError> {
+    let client_list = connection_role.pick(own_list, other_list);
+    let server_list = connection_role.pick(other_list, own_list);
 
-    let encryption_c2s = negotiate_basic_algorithm(
-        &own_list.encryption_c2s,
-        &other_list.encryption_c2s,
-        own_role,
-        AlgorithmRole(
-            AlgorithmCategory::Encryption,
-            Some(AlgorithmDirection::ClientToServer),
-        ),
-    )?;
-    let mac_c2s_needed = available_algorithms
-        .encryption_c2s
-        .find_algorithm(encryption_c2s)
+    let negotiate_packet_algorithms = |client_encryption,
+                                       server_encryption,
+                                       client_mac,
+                                       server_mac,
+                                       client_compression,
+                                       server_compression,
+                                       direction| {
+        let encryption = negotiate_basic_algorithm(
+            client_encryption,
+            server_encryption,
+            AlgorithmRole(AlgorithmCategory::Encryption, Some(direction)),
+        )?;
+
+        let mac_needed = match direction {
+            AlgorithmDirection::ClientToServer => &connection_algorithms.c2s,
+            AlgorithmDirection::ServerToClient => &connection_algorithms.s2c,
+        }
+        .encryption
+        .algorithm(encryption)
         .expect("chosen algorithm is available")
         .mac_size()
         .is_none();
-    let mac_c2s = if mac_c2s_needed {
-        Some(negotiate_basic_algorithm(
-            &own_list.mac_c2s,
-            &other_list.mac_c2s,
-            own_role,
-            AlgorithmRole(
-                AlgorithmCategory::Mac,
-                Some(AlgorithmDirection::ClientToServer),
-            ),
-        )?)
-    } else {
-        None
+        let mac = if mac_needed {
+            Some(negotiate_basic_algorithm(
+                client_mac,
+                server_mac,
+                AlgorithmRole(AlgorithmCategory::Mac, Some(direction)),
+            )?)
+        } else {
+            None
+        };
+
+        let compression = negotiate_basic_algorithm(
+            client_compression,
+            server_compression,
+            AlgorithmRole(AlgorithmCategory::Compression, Some(direction)),
+        )?;
+
+        Ok((encryption, mac, compression))
     };
-    let compression_c2s = negotiate_basic_algorithm(
-        &own_list.compression_c2s,
-        &other_list.compression_c2s,
-        own_role,
-        AlgorithmRole(
-            AlgorithmCategory::Compression,
-            Some(AlgorithmDirection::ClientToServer),
-        ),
+
+    let (encryption_c2s, mac_c2s, compression_c2s) = negotiate_packet_algorithms(
+        &client_list.encryption_c2s,
+        &server_list.encryption_c2s,
+        &client_list.mac_c2s,
+        &server_list.mac_c2s,
+        &client_list.compression_c2s,
+        &server_list.compression_c2s,
+        AlgorithmDirection::ClientToServer,
+    )?;
+    let (encryption_s2c, mac_s2c, compression_s2c) = negotiate_packet_algorithms(
+        &client_list.encryption_s2c,
+        &server_list.encryption_s2c,
+        &client_list.mac_s2c,
+        &server_list.mac_s2c,
+        &client_list.compression_s2c,
+        &server_list.compression_s2c,
+        AlgorithmDirection::ServerToClient,
     )?;
 
-    let encryption_s2c = negotiate_basic_algorithm(
-        &own_list.encryption_s2c,
-        &other_list.encryption_s2c,
-        own_role,
-        AlgorithmRole(
-            AlgorithmCategory::Encryption,
-            Some(AlgorithmDirection::ServerToClient),
-        ),
-    )?;
-    let mac_s2c_needed = available_algorithms
-        .encryption_s2c
-        .find_algorithm(encryption_s2c)
-        .expect("chosen algorithm is available")
-        .mac_size()
-        .is_none();
-    let mac_s2c = if mac_s2c_needed {
-        Some(negotiate_basic_algorithm(
-            &own_list.mac_s2c,
-            &other_list.mac_s2c,
-            own_role,
-            AlgorithmRole(
-                AlgorithmCategory::Mac,
-                Some(AlgorithmDirection::ServerToClient),
-            ),
-        )?)
-    } else {
-        None
-    };
-    let compression_s2c = negotiate_basic_algorithm(
-        &own_list.compression_s2c,
-        &other_list.compression_s2c,
-        own_role,
-        AlgorithmRole(
-            AlgorithmCategory::Compression,
-            Some(AlgorithmDirection::ServerToClient),
-        ),
-    )?;
-
-    let kex_name = kex::negotiate_algorithm(own_list, other_list, own_role, available_algorithms)?;
-    let host_key_name = negotiate_host_key_algorithm(
-        own_list,
-        other_list,
-        own_role,
-        available_algorithms,
-        kex_name,
-    )?;
+    let kex_name =
+        kex::negotiate_algorithm(own_list, other_list, connection_role, connection_algorithms)?;
+    let host_key_name =
+        negotiate_host_key_algorithm(client_list, server_list, connection_algorithms, kex_name)?;
 
     let chosen_algorithms = ChosenAlgorithms {
         encryption_c2s,
@@ -418,30 +446,29 @@ fn negotiate_algorithms<'a>(
         compression_s2c,
     };
 
-    Ok((kex_name, host_key_name, chosen_algorithms))
+    connection_algorithms.kex.choose(kex_name);
+    connection_algorithms.host_key.choose(host_key_name);
+
+    Ok(chosen_algorithms)
 }
 
 /// Negotiates a server host key algorithm.
-fn negotiate_host_key_algorithm(
-    own_list: &AlgorithmNameList<'static>,
-    other_list: &AlgorithmNameList,
-    connection_role: &ConnectionRole,
-    available_algorithms: &ConnectionAlgorithms,
+fn negotiate_host_key_algorithm<'names>(
+    client_list: &'names AlgorithmNameList<'names>,
+    server_list: &'names AlgorithmNameList<'names>,
+    connection_algorithms: &ConnectionAlgorithms,
     kex: &str,
-) -> Result<&'static str, KeyExchangeProcedureError> {
-    let kex_alg = available_algorithms
-        .kex_by_name(kex)
+) -> Result<&'names str, KeyExchangeProcedureError> {
+    let kex_alg = connection_algorithms
+        .kex
+        .algorithm(kex)
         .expect("chosen key exchange algorithm should exist");
 
-    let (client_list, server_list) = match connection_role {
-        ConnectionRole::Client => (&own_list.host_key, &other_list.host_key),
-        ConnectionRole::Server => (&other_list.host_key, &own_list.host_key),
-    };
-
     client_list
+        .host_key
         .iter()
         .filter(|name| {
-            let host_key_alg = match available_algorithms.host_key_by_name(name) {
+            let host_key_alg = match connection_algorithms.host_key.algorithm(name) {
                 Some(alg) => alg,
                 None => return false,
             };
@@ -451,19 +478,8 @@ fn negotiate_host_key_algorithm(
                 || (kex_alg.requires_signature_capable_host_key_algorithm()
                     && host_key_alg.is_signature_capable())
         })
-        .find(|name| server_list.contains(name))
-        .map(|name| {
-            for a in own_list.host_key.iter() {
-                if a == name {
-                    match a {
-                        Cow::Borrowed(res) => return *res,
-                        Cow::Owned(_) => unreachable!(),
-                    }
-                }
-            }
-
-            unreachable!()
-        })
+        .find(|name| server_list.host_key.contains(name))
+        .map(|name| &**name)
         .ok_or(KeyExchangeProcedureError::NoAlgorithmFound(AlgorithmRole(
             AlgorithmCategory::HostKey,
             None,
@@ -471,31 +487,14 @@ fn negotiate_host_key_algorithm(
 }
 
 /// Negotiates an encryption, MAC or compression algorithm.
-fn negotiate_basic_algorithm(
-    own_list: &[Cow<'static, str>],
-    other_list: &[Cow<str>],
-    own_role: &ConnectionRole,
+fn negotiate_basic_algorithm<'names>(
+    client_list: &'names [Cow<'names, str>],
+    server_list: &'names [Cow<'names, str>],
     role: AlgorithmRole,
-) -> Result<&'static str, KeyExchangeProcedureError> {
-    let (client_list, server_list) = match own_role {
-        ConnectionRole::Client => (own_list, other_list),
-        ConnectionRole::Server => (other_list, own_list),
-    };
-
+) -> Result<&'names str, KeyExchangeProcedureError> {
     client_list
         .iter()
         .find(|name| server_list.contains(name))
-        .map(|name| {
-            for n in own_list {
-                if n == name {
-                    match n {
-                        Cow::Borrowed(res) => return *res,
-                        Cow::Owned(_) => unreachable!(),
-                    }
-                }
-            }
-
-            unreachable!()
-        })
+        .map(|name| &**name)
         .ok_or(KeyExchangeProcedureError::NoAlgorithmFound(role))
 }

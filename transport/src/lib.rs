@@ -21,14 +21,12 @@ use std::{borrow::Cow, fmt};
 use crate::{
     algorithms::{AddIn, ConnectionAlgorithms},
     errors::{
-        BuildError, CommunicationError, InvalidAlgorithmError, LoadHostKeyError,
-        ServiceRequestError,
+        BuildError, CommunicationError, InvalidNameError, LoadHostKeyError, ServiceRequestError,
     },
     input_handler::InputHandler,
     output_handler::{OutputHandler, PacketFlusher},
     padding_length::PaddingLengthDistribution,
     protocol::ProtocolHandler,
-    runtime_state::RuntimeState,
 };
 
 pub use input_handler::InputStream;
@@ -36,12 +34,12 @@ pub use output_handler::OutputStream;
 pub use russh_definitions::ConnectionRole;
 pub use version::VersionInformation;
 
+#[macro_use]
 mod algorithms;
 mod input_handler;
 mod output_handler;
 mod parser;
 mod protocol;
-mod runtime_state;
 #[cfg(test)]
 mod test_helpers;
 mod version;
@@ -179,12 +177,13 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         validation_fn: V,
         algorithm: A,
         push_fn: P,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)>
+    ) -> Result<Self, (Self, InvalidNameError)>
     where
-        V: FnOnce(&A) -> Result<(), InvalidAlgorithmError>,
+        A: russh_definitions::algorithms::Algorithm,
+        V: FnOnce(&str) -> Result<(), InvalidNameError>,
         P: FnOnce(&mut Self, Box<A>),
     {
-        match validation_fn(&algorithm) {
+        match validation_fn(algorithm.name()) {
             Ok(()) => {
                 push_fn(&mut self, Box::new(algorithm));
 
@@ -210,11 +209,17 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_key_exchange_algorithm<A: KeyExchangeAlgorithm + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
-            |builder, a| builder.connection_algorithms.kex.insert(0, a),
+            |builder, a| {
+                builder
+                    .connection_algorithms
+                    .kex
+                    .add::<Box<dyn KeyExchangeAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
+            },
         )
     }
 
@@ -222,11 +227,17 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_host_key_algorithm<A: HostKeyAlgorithm + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
-            |builder, a| builder.connection_algorithms.host_key.insert(0, a),
+            |builder, a| {
+                builder
+                    .connection_algorithms
+                    .host_key
+                    .add::<Box<dyn HostKeyAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
+            },
         )
     }
 
@@ -234,19 +245,21 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_encryption_algorithm<A: EncryptionAlgorithm + Clone + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .encryption_c2s
+                    .c2s
+                    .encryption
                     .add::<Box<dyn EncryptionAlgorithm>>(a.clone(), AddIn::Front)
                     .unwrap();
                 builder
                     .connection_algorithms
-                    .encryption_s2c
+                    .s2c
+                    .encryption
                     .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -257,14 +270,15 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_encryption_algorithm_client_to_server<A: EncryptionAlgorithm + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .encryption_c2s
+                    .c2s
+                    .encryption
                     .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -275,14 +289,15 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_encryption_algorithm_server_to_client<A: EncryptionAlgorithm + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .encryption_s2c
+                    .s2c
+                    .encryption
                     .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -293,19 +308,21 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_mac_algorithm<A: MacAlgorithm + Clone + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .mac_c2s
+                    .c2s
+                    .mac
                     .add::<Box<dyn MacAlgorithm>>(a.clone(), AddIn::Front)
                     .unwrap();
                 builder
                     .connection_algorithms
-                    .mac_s2c
+                    .s2c
+                    .mac
                     .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -316,14 +333,15 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_mac_algorithm_client_to_server<A: MacAlgorithm + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .mac_c2s
+                    .c2s
+                    .mac
                     .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -334,14 +352,15 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_mac_algorithm_server_to_client<A: MacAlgorithm + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .mac_s2c
+                    .s2c
+                    .mac
                     .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -352,19 +371,21 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_compression_algorithm<A: CompressionAlgorithm + Clone + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .compression_c2s
+                    .c2s
+                    .compression
                     .add::<Box<dyn CompressionAlgorithm>>(a.clone(), AddIn::Front)
                     .unwrap();
                 builder
                     .connection_algorithms
-                    .compression_s2c
+                    .s2c
+                    .compression
                     .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -375,14 +396,15 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_compression_algorithm_client_to_server<A: CompressionAlgorithm + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .compression_c2s
+                    .c2s
+                    .compression
                     .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -393,14 +415,15 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     pub fn add_compression_algorithm_server_to_client<A: CompressionAlgorithm + 'static>(
         self,
         algorithm: A,
-    ) -> Result<Self, (Self, InvalidAlgorithmError)> {
+    ) -> Result<Self, (Self, InvalidNameError)> {
         self.add_algorithm(
-            |a| algorithms::helpers::is_valid_algorithm(a),
+            |a| algorithms::helpers::validate_algorithm_name(a),
             algorithm,
             |builder, a| {
                 builder
                     .connection_algorithms
-                    .compression_s2c
+                    .s2c
+                    .compression
                     .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
                     .unwrap();
             },
@@ -455,10 +478,6 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
 
     /// Creates an `Handler` from the configured builder.
     pub async fn build(self) -> Result<Handler<Input, Output>, BuildError> {
-        self.connection_algorithms
-            .all_algorithms_valid()
-            .map_err(BuildError::InvalidAlgorithm)?;
-
         if let Some(role) = self.connection_algorithms.empty_algorithm_role() {
             return Err(BuildError::EmptyAlgorithmRole(role));
         }
@@ -467,18 +486,14 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             return Err(BuildError::RequiredNoneAlgorithmMissing(role));
         }
 
-        let runtime_state = RuntimeState::new(
-            self.version_info.unwrap_or_default(),
-            self.connection_algorithms,
-            self.connection_role,
-            self.rng.unwrap_or_else(|| Box::new(StdRng::from_entropy())),
-            self.allow_none_algorithms,
-        );
-
         ProtocolHandler::new(
-            runtime_state,
             InputHandler::new(self.input),
             OutputHandler::new(self.output, self.padding_length_distribution),
+            self.rng.unwrap_or_else(|| Box::new(StdRng::from_entropy())),
+            self.connection_role,
+            self.connection_algorithms,
+            self.allow_none_algorithms,
+            self.version_info.unwrap_or_default(),
         )
         .await
         .map_err(BuildError::Initialization)

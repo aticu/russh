@@ -5,7 +5,7 @@ use std::{borrow::Cow, fmt};
 use crate::{constants::PROTOCOL_VERSION, errors::IllegalVersionError};
 
 /// Contains version information about one participant of the connection.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct VersionInformation {
     /// The version of the protocol.
     protocol_version: Cow<'static, str>,

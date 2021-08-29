@@ -48,7 +48,7 @@ impl Ed25519 {
     }
 
     /// Creates a new boxed `ssh-ed25519` host key algorithm.
-    pub fn boxed() -> Box<Ed25519> {
+    pub fn boxed() -> Box<dyn HostKeyAlgorithm> {
         Box::new(Ed25519::new())
     }
 }

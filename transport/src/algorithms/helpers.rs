@@ -1,8 +1,6 @@
 //! Contains helper functions to implement algorithms and check their validity.
 
-use russh_definitions::algorithms::Algorithm;
-
-use crate::errors::{InvalidAlgorithmError, InvalidNameError};
+use crate::errors::InvalidNameError;
 
 /// Checks if the given domain name is valid.
 fn is_valid_domain(domain: &str) -> bool {
@@ -67,19 +65,6 @@ pub(crate) fn validate_algorithm_name(name: &str) -> Result<(), InvalidNameError
     if iter.next().is_some() {
         return Err(InvalidNameError::TooManyAtSymbols);
     }
-
-    Ok(())
-}
-
-/// Attempts to validate the validity of an algorithm implementation.
-pub(crate) fn is_valid_algorithm(algorithm: &dyn Algorithm) -> Result<(), InvalidAlgorithmError> {
-    validate_algorithm_name(algorithm.name()).map_err(|err| {
-        InvalidAlgorithmError::InvalidName {
-            algorithm_name: algorithm.name().into(),
-            algorithm_category: algorithm.category(),
-            name_error: err,
-        }
-    })?;
 
     Ok(())
 }

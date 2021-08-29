@@ -2,10 +2,7 @@
 
 use num_bigint::BigInt;
 use russh_definitions::{
-    algorithms::{
-        AlgorithmCategory, AlgorithmRole, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeData,
-        KeyExchangeResponse,
-    },
+    algorithms::{AlgorithmCategory, AlgorithmRole, KeyExchangeData, KeyExchangeResponse},
     consts::{MessageType, SSH_MSG_KEXINIT},
     ConnectionRole, ParsedValue,
 };
@@ -19,7 +16,7 @@ use crate::{
     errors::{CommunicationError, KeyExchangeProcedureError, ParseError},
     input_handler::{InputHandler, InputStream},
     output_handler::{OutputHandler, OutputStream},
-    runtime_state::RuntimeState,
+    CryptoRngCore,
 };
 
 /// Represents the result of a key exchange.
@@ -39,23 +36,28 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
     Input: InputStream,
     Output: OutputStream,
 >(
-    kex_algorithm: &mut dyn KeyExchangeAlgorithm,
-    host_key_algorithm: &mut dyn HostKeyAlgorithm,
     key_exchange_data: &KeyExchangeData<'_>,
-    runtime_state: &mut RuntimeState,
+    connection_role: ConnectionRole,
+    connection_algorithms: &mut ConnectionAlgorithms,
+    rng: &mut dyn CryptoRngCore,
     input_handler: &mut InputHandler<Input>,
     output_handler: &mut OutputHandler<Output>,
 ) -> Result<KeyExchangeResult, KeyExchangeProcedureError> {
-    let role = *runtime_state.connection_role();
+    let kex_algorithm = connection_algorithms.kex.current();
+    let host_key_algorithm = connection_algorithms.host_key.current();
 
     if let Some(start_packet) = kex_algorithm.start(
-        &role,
+        &connection_role,
         key_exchange_data,
-        host_key_algorithm,
-        &mut runtime_state.rng(),
+        &mut **host_key_algorithm,
+        rng,
     ) {
         output_handler
-            .send_packet(&start_packet, runtime_state)
+            .send_packet(
+                &start_packet,
+                outgoing_algorithms!(connection_algorithms, connection_role),
+                rng,
+            )
             .flush()
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
@@ -63,7 +65,7 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
 
     let (host_key, shared_secret, exchange_hash, message) = loop {
         let answer = input_handler
-            .next_packet(runtime_state)
+            .next_packet(incoming_algorithms!(connection_algorithms, connection_role))
             .await
             .map_err(KeyExchangeProcedureError::Communication)?;
 
@@ -71,12 +73,7 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
             return Err(KeyExchangeProcedureError::NonKeyExchangePacketReceived);
         }
 
-        match kex_algorithm.respond(
-            &answer,
-            key_exchange_data,
-            host_key_algorithm,
-            runtime_state.rng(),
-        ) {
+        match kex_algorithm.respond(&answer, key_exchange_data, &mut **host_key_algorithm, rng) {
             Ok(KeyExchangeResponse::Finished {
                 host_key,
                 shared_secret,
@@ -85,7 +82,11 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
             }) => break (host_key, shared_secret, exchange_hash, message),
             Ok(KeyExchangeResponse::Packet(packet)) => {
                 output_handler
-                    .send_packet(&packet, runtime_state)
+                    .send_packet(
+                        &packet,
+                        outgoing_algorithms!(connection_algorithms, connection_role),
+                        rng,
+                    )
                     .flush()
                     .await
                     .map_err(|err| {
@@ -98,7 +99,11 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
 
     if let Some(message) = message {
         output_handler
-            .send_packet(&message, runtime_state)
+            .send_packet(
+                &message,
+                outgoing_algorithms!(connection_algorithms, connection_role),
+                rng,
+            )
             .flush()
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
@@ -122,6 +127,7 @@ pub(in crate::protocol) struct KexinitPacket<'a> {
     pub(in crate::protocol) first_kex_packet_follows: bool,
 }
 
+#[rustfmt::skip]
 russh_definitions::ssh_packet! {
     #[derive(Debug, Default)]
     struct RawKexinitPacket {
@@ -191,12 +197,12 @@ pub(in crate::protocol) fn write_kexinit(
 }
 
 /// Negotiates a key exchange algorithm to use.
-pub(in crate::protocol) fn negotiate_algorithm(
-    own_list: &AlgorithmNameList<'static>,
-    other_list: &AlgorithmNameList,
-    own_role: &ConnectionRole,
-    available_algorithms: &ConnectionAlgorithms,
-) -> Result<&'static str, KeyExchangeProcedureError> {
+pub(in crate::protocol) fn negotiate_algorithm<'names>(
+    own_list: &'names AlgorithmNameList<'names>,
+    other_list: &'names AlgorithmNameList<'names>,
+    own_role: ConnectionRole,
+    connection_algorithms: &ConnectionAlgorithms,
+) -> Result<&'names str, KeyExchangeProcedureError> {
     let own_kex_list = &own_list.kex;
     let other_kex_list = &other_list.kex;
 
@@ -219,60 +225,49 @@ pub(in crate::protocol) fn negotiate_algorithm(
         ConnectionRole::Server => (other_kex_list, own_kex_list),
     };
 
+    let shared_encryption_capable_host_key_algorithm = other_list.host_key.iter().any(|alg| {
+        // if the algorithm is found in the `connection_algorithms`, it must also be present in
+        // the own algorithm list
+        connection_algorithms
+            .host_key
+            .algorithm(alg)
+            .map(|a| a.is_encryption_capable())
+            .unwrap_or(false)
+    });
+
+    let shared_signature_capable_host_key_algorithm = other_list.host_key.iter().any(|alg| {
+        // if the algorithm is found in the `connection_algorithms`, it must also be present in
+        // the own algorithm list
+        connection_algorithms
+            .host_key
+            .algorithm(alg)
+            .map(|a| a.is_signature_capable())
+            .unwrap_or(false)
+    });
+
     for algorithm_name in client_algorithms {
         if !server_algorithms.contains(algorithm_name) {
             continue;
         }
 
-        let algorithm = match available_algorithms.kex_by_name(algorithm_name) {
+        let algorithm = match connection_algorithms.kex.algorithm(algorithm_name) {
             Some(alg) => alg,
             None => continue,
         };
 
-        if algorithm.requires_encryption_capable_host_key_algorithm() {
-            let common_algorithm = own_list
-                .host_key
-                .iter()
-                .filter(|alg| {
-                    available_algorithms
-                        .host_key_by_name(alg)
-                        .map(|a| a.is_encryption_capable())
-                        .unwrap_or(false)
-                })
-                .any(|alg| other_list.host_key.iter().any(|a| a == alg));
-
-            if !common_algorithm {
-                continue;
-            }
+        if algorithm.requires_encryption_capable_host_key_algorithm()
+            && !shared_encryption_capable_host_key_algorithm
+        {
+            continue;
         }
 
-        if algorithm.requires_signature_capable_host_key_algorithm() {
-            let common_algorithm = own_list
-                .host_key
-                .iter()
-                .filter(|alg| {
-                    available_algorithms
-                        .host_key_by_name(alg)
-                        .map(|a| a.is_signature_capable())
-                        .unwrap_or(false)
-                })
-                .any(|alg| other_list.host_key.iter().any(|a| a == alg));
-
-            if !common_algorithm {
-                continue;
-            }
+        if algorithm.requires_signature_capable_host_key_algorithm()
+            && !shared_signature_capable_host_key_algorithm
+        {
+            continue;
         }
 
-        for name in own_kex_list {
-            if name == algorithm_name {
-                match name {
-                    Cow::Borrowed(res) => return Ok(res),
-                    Cow::Owned(_) => unreachable!(),
-                }
-            }
-        }
-
-        unreachable!();
+        return Ok(algorithm_name);
     }
 
     Err(KeyExchangeProcedureError::NoAlgorithmFound(AlgorithmRole(
@@ -315,37 +310,37 @@ mod tests {
         assert_eq!(
             &target[..],
             &[
-                SSH_MSG_KEXINIT,
-                42, 42, 42, 42, 42, 42, 42, 42, // cookie
-                42, 42, 42, 42, 42, 42, 42, 42,
-                0, 0, 0, 54, // kex algorithms
-                b'd', b'i', b'f', b'f', b'i', b'e', b'-', b'h', b'e', b'l', b'l', b'm', b'a', b'n',
-                b'-', b'g', b'r', b'o', b'u', b'p', b'1', b'-', b's', b'h', b'a', b'1', b',', b'd',
-                b'i', b'f', b'f', b'i', b'e', b'-', b'h', b'e', b'l', b'l', b'm', b'a', b'n', b'-',
-                b'g', b'r', b'o', b'u', b'p', b'1', b'4', b'-', b's', b'h', b'a', b'1',
-                0, 0, 0, 15, // server host key algorithms
-                b's', b's', b'h', b'-', b'd', b's', b's', b',', b's', b's', b'h', b'-', b'r', b's',
-                b'a',
-                0, 0, 0, 15, // encryption c2s
-                b'a', b'e', b's', b'1', b'2', b'8', b'-', b'c', b'b', b'c', b',', b'n', b'o', b'n',
-                b'e',
-                0, 0, 0, 15, // encryption s2c
-                b'a', b'e', b's', b'1', b'2', b'8', b'-', b'c', b'b', b'c', b',', b'n', b'o', b'n',
-                b'e',
-                0, 0, 0, 14, // mac c2s
-                b'h', b'm', b'a', b'c', b'-', b's', b'h', b'a', b'1', b',', b'n', b'o', b'n', b'e',
-                0, 0, 0, 14, // mac s2c
-                b'h', b'm', b'a', b'c', b'-', b's', b'h', b'a', b'1', b',', b'n', b'o', b'n', b'e',
-                0, 0, 0, 9, // compression c2s
-                b'n', b'o', b'n', b'e', b',', b'z', b'l', b'i', b'b',
-                0, 0, 0, 4, // compression s2c
-                b'n', b'o', b'n', b'e',
-                0, 0, 0, 0, // languages c2s
-                0, 0, 0, 0, // languages s2c
-                0, // first kex packet follows
-                0, 0, 0, 0 // reserved
-            ][..]
-        );
+            SSH_MSG_KEXINIT,
+            42, 42, 42, 42, 42, 42, 42, 42, // cookie
+            42, 42, 42, 42, 42, 42, 42, 42,
+            0, 0, 0, 54, // kex algorithms
+            b'd', b'i', b'f', b'f', b'i', b'e', b'-', b'h', b'e', b'l', b'l', b'm', b'a', b'n',
+            b'-', b'g', b'r', b'o', b'u', b'p', b'1', b'-', b's', b'h', b'a', b'1', b',', b'd',
+            b'i', b'f', b'f', b'i', b'e', b'-', b'h', b'e', b'l', b'l', b'm', b'a', b'n', b'-',
+            b'g', b'r', b'o', b'u', b'p', b'1', b'4', b'-', b's', b'h', b'a', b'1',
+            0, 0, 0, 15, // server host key algorithms
+            b's', b's', b'h', b'-', b'd', b's', b's', b',', b's', b's', b'h', b'-', b'r', b's',
+            b'a',
+            0, 0, 0, 15, // encryption c2s
+            b'a', b'e', b's', b'1', b'2', b'8', b'-', b'c', b'b', b'c', b',', b'n', b'o', b'n',
+            b'e',
+            0, 0, 0, 15, // encryption s2c
+            b'a', b'e', b's', b'1', b'2', b'8', b'-', b'c', b'b', b'c', b',', b'n', b'o', b'n',
+            b'e',
+            0, 0, 0, 14, // mac c2s
+            b'h', b'm', b'a', b'c', b'-', b's', b'h', b'a', b'1', b',', b'n', b'o', b'n', b'e',
+            0, 0, 0, 14, // mac s2c
+            b'h', b'm', b'a', b'c', b'-', b's', b'h', b'a', b'1', b',', b'n', b'o', b'n', b'e',
+            0, 0, 0, 9, // compression c2s
+            b'n', b'o', b'n', b'e', b',', b'z', b'l', b'i', b'b',
+            0, 0, 0, 4, // compression s2c
+            b'n', b'o', b'n', b'e',
+            0, 0, 0, 0, // languages c2s
+            0, 0, 0, 0, // languages s2c
+            0, // first kex packet follows
+            0, 0, 0, 0 // reserved
+                ][..]
+                );
 
         assert_eq!(parse_kexinit(&target), Ok(packet));
     }

@@ -98,9 +98,6 @@ pub enum LoadHostKeyError {
 /// Describes the errors that can occur while building an SSHTransportHandler.
 #[derive(Debug, thiserror::Error)]
 pub enum BuildError {
-    /// The building failed due to an invalid algorithm.
-    #[error("invalid algorithm used: {0}")]
-    InvalidAlgorithm(InvalidAlgorithmError),
     /// The given algorithm category had no algorithms in it.
     #[error("{0}: no algorithm found")]
     EmptyAlgorithmRole(AlgorithmRole),
@@ -141,21 +138,6 @@ pub enum IllegalVersionError {
     /// The proposed version contained the `'-'` character.
     #[error("the version cannot contain the '-' character")]
     Minus(usize),
-}
-
-/// Contains the reason why an algorithm is invalid.
-#[derive(Debug, PartialEq, Eq, Clone, thiserror::Error)]
-pub enum InvalidAlgorithmError {
-    /// The algorithm name is invalid.
-    #[error("algorithm name {algorithm_name:?} is invalid: {name_error}")]
-    InvalidName {
-        /// The name of the invalid algorithm.
-        algorithm_name: String,
-        /// The category for which the algorithm is invalid.
-        algorithm_category: AlgorithmCategory,
-        /// The reason the name is invalid.
-        name_error: InvalidNameError,
-    },
 }
 
 /// Contains the reason why an algorithm name is invalid.

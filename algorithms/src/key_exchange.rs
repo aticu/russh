@@ -9,10 +9,13 @@ mod curve25519_sha256;
 #[doc(inline)]
 pub use self::curve25519_sha256::*;
 
-/// Returns all the key exchange algorithms defined by this crate.
-pub fn algorithms() -> Vec<Box<dyn KeyExchangeAlgorithm>> {
-    vec![
-        #[cfg(feature = "curve25519-sha256")]
-        Curve25519Sha256::boxed(),
-    ]
+/// Calls the `add` function with all key exchange algorithms defined and enabled in this crate.
+pub fn add_algorithms<Entry, F>(mut add: F)
+where
+    Box<dyn KeyExchangeAlgorithm>: Into<Entry>,
+    F: FnMut(Entry),
+{
+    // This is the same order used by OpenSSH
+    #[cfg(feature = "curve25519-sha256")]
+    add(Curve25519Sha256::boxed().into());
 }

@@ -4,10 +4,11 @@ use std::{borrow::Cow, fmt, io};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::{
+    algorithms::PacketAlgorithms,
     padding_length::{self, PaddingLengthDistribution},
-    runtime_state::RuntimeState,
     version::VersionInformation,
     writer::WriterOutputStream,
+    CryptoRngCore,
 };
 
 /// A trait to represent the input to the SSH transport layer.
@@ -73,10 +74,9 @@ impl<Output: OutputStream> OutputHandler<Output> {
     pub(crate) fn send_packet(
         &mut self,
         payload: &[u8],
-        runtime_state: &mut RuntimeState,
+        algorithms: PacketAlgorithms,
+        rng: &mut dyn CryptoRngCore,
     ) -> PacketFlusher<Output> {
-        let (algorithms, rng) = runtime_state.output_algorithms_and_rng();
-
         let compressed = algorithms.compression.compress(Cow::Borrowed(payload));
 
         self.packet_writer.write_packet(
@@ -158,7 +158,6 @@ mod tests {
         algorithms::ConnectionAlgorithms,
         errors::CommunicationError,
         input_handler::InputHandler,
-        runtime_state::RuntimeState,
         test_helpers::{FakeNetworkInput, FakeNetworkOutput},
         ConnectionRole,
     };
@@ -168,24 +167,23 @@ mod tests {
         let fake_output = FakeNetworkOutput::new(1);
 
         let mut output_handler = OutputHandler::new(fake_output, None);
+        let mut rng = Box::new(ChaCha20Rng::from_seed(Default::default()));
+        let version_info = VersionInformation::new("test").unwrap();
 
-        let mut runtime_state = RuntimeState::new(
-            VersionInformation::new("test").unwrap(),
-            ConnectionAlgorithms::default(),
-            ConnectionRole::Client,
-            Box::new(ChaCha20Rng::from_seed(Default::default())),
-            true,
-        );
+        let mut connection_algorithms = ConnectionAlgorithms::default();
 
         futures::executor::block_on(async {
-            let flusher = output_handler.initialize(runtime_state.local_version_info());
+            let flusher = output_handler.initialize(&version_info);
 
             assert_eq!(flusher.output.written(), &[]);
 
             flusher.dont_flush();
 
-            let flusher =
-                output_handler.send_packet(b"this is an important message", &mut runtime_state);
+            let flusher = output_handler.send_packet(
+                b"this is an important message",
+                outgoing_algorithms!(connection_algorithms, ConnectionRole::Client),
+                &mut rng,
+            );
 
             assert_eq!(flusher.output.written(), &[]);
 
@@ -195,7 +193,11 @@ mod tests {
         assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
 
         futures::executor::block_on(async {
-            let flusher = output_handler.send_packet(b"one more message", &mut runtime_state);
+            let flusher = output_handler.send_packet(
+                b"one more message",
+                outgoing_algorithms!(connection_algorithms, ConnectionRole::Client),
+                &mut rng,
+            );
 
             assert_eq!(flusher.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
 
@@ -210,29 +212,26 @@ mod tests {
         let fake_output = FakeNetworkOutput::new(1);
 
         let mut output_handler = OutputHandler::new(fake_output, None);
+        let mut rng = Box::new(ChaCha20Rng::from_seed(Default::default()));
+        let version_info = VersionInformation::new("test").unwrap();
 
-        let mut runtime_state = RuntimeState::new(
-            VersionInformation::new("test").unwrap(),
-            ConnectionAlgorithms::default(),
-            ConnectionRole::Client,
-            Box::new(ChaCha20Rng::from_seed(Default::default())),
-            true,
-        );
+        let mut connection_algorithms = ConnectionAlgorithms::default();
 
         let message = b"this is an important message";
 
         futures::executor::block_on(async {
             assert!(matches!(
-                output_handler
-                    .initialize(runtime_state.local_version_info())
-                    .flush()
-                    .await,
+                output_handler.initialize(&version_info).flush().await,
                 Ok(())
             ));
 
             assert!(matches!(
                 output_handler
-                    .send_packet(message, &mut runtime_state)
+                    .send_packet(
+                        message,
+                        outgoing_algorithms!(connection_algorithms, ConnectionRole::Client),
+                        &mut rng
+                    )
                     .flush()
                     .await,
                 Ok(())
@@ -243,13 +242,7 @@ mod tests {
 
         let mut input_handler = InputHandler::new(fake_input);
 
-        let mut runtime_state = RuntimeState::new(
-            VersionInformation::new("test").unwrap(),
-            ConnectionAlgorithms::default(),
-            ConnectionRole::Server,
-            Box::new(ChaCha20Rng::from_seed(Default::default())),
-            true,
-        );
+        let mut connection_algorithms = ConnectionAlgorithms::default();
 
         futures::executor::block_on(async {
             assert_eq!(
@@ -262,14 +255,22 @@ mod tests {
 
             assert_eq!(
                 input_handler
-                    .next_packet(&mut runtime_state)
+                    .next_packet(incoming_algorithms!(
+                        connection_algorithms,
+                        ConnectionRole::Server
+                    ))
                     .await
                     .expect("packet exists"),
                 message.to_vec()
             );
 
             assert!(matches!(
-                input_handler.next_packet(&mut runtime_state).await,
+                input_handler
+                    .next_packet(incoming_algorithms!(
+                        connection_algorithms,
+                        ConnectionRole::Server
+                    ))
+                    .await,
                 Err(CommunicationError::EndOfInput)
             ));
         });

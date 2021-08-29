@@ -34,7 +34,7 @@ impl Curve25519Sha256 {
     }
 
     /// Creates a new boxed `curve25519-sha256` key exchange algorithm.
-    pub fn boxed() -> Box<Curve25519Sha256> {
+    pub fn boxed() -> Box<dyn KeyExchangeAlgorithm> {
         Box::new(Curve25519Sha256::new())
     }
 }
