@@ -32,7 +32,7 @@ impl None {
     }
 
     /// Creates a new boxed `none` MAC algorithm.
-    pub fn boxed() -> Box<None> {
+    pub fn boxed() -> Box<dyn MacAlgorithm> {
         Box::new(None::new())
     }
 }
@@ -76,16 +76,18 @@ impl MacAlgorithm for None {
     }
 }
 
-/// Returns all the MAC algorithms defined by this crate.
-pub fn algorithms() -> Vec<Box<dyn MacAlgorithm>> {
+/// Calls the `add` function with all MAC algorithms defined and enabled in this crate.
+pub fn add_algorithms<Entry, F>(mut add: F)
+where
+    Box<dyn MacAlgorithm>: Into<Entry>,
+    F: FnMut(Entry),
+{
     // This is the same order used by OpenSSH
-    vec![
-        #[cfg(feature = "hmac-sha2-256")]
-        HmacSha2256::boxed(),
-        #[cfg(feature = "hmac-sha2-512")]
-        HmacSha2512::boxed(),
-        #[cfg(feature = "hmac-sha1")]
-        HmacSha1::boxed(),
-        None::boxed(),
-    ]
+    #[cfg(feature = "hmac-sha2-256")]
+    add(HmacSha2256::boxed().into());
+    #[cfg(feature = "hmac-sha2-512")]
+    add(HmacSha2512::boxed().into());
+    #[cfg(feature = "hmac-sha1")]
+    add(HmacSha1::boxed().into());
+    add(None::boxed().into());
 }

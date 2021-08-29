@@ -1,69 +1,66 @@
 //! Contains built-in algorithm implementations.
 
 use crate::algorithms::{
-    CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm, MacAlgorithm,
+    AddIn, AlgorithmList, CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm,
+    KeyExchangeAlgorithm, MacAlgorithm,
 };
 
-// With default algorithms, simply include those
-
 /// Returns a list of all builtin key exchange algorithms.
-#[cfg(feature = "default-algorithms")]
 pub(crate) fn key_exchange_algorithms() -> Vec<Box<dyn KeyExchangeAlgorithm>> {
-    russh_algorithms::key_exchange::algorithms()
+    #[cfg(feature = "default-algorithms")]
+    {
+        russh_algorithms::key_exchange::algorithms()
+    }
+    #[cfg(not(feature = "default-algorithms"))]
+    {
+        Vec::new()
+    }
 }
 
 /// Returns a list of all builtin host key algorithms.
-#[cfg(feature = "default-algorithms")]
 pub(crate) fn host_key_algorithms() -> Vec<Box<dyn HostKeyAlgorithm>> {
-    russh_algorithms::host_key::algorithms()
+    #[cfg(feature = "default-algorithms")]
+    {
+        russh_algorithms::host_key::algorithms()
+    }
+    #[cfg(not(feature = "default-algorithms"))]
+    {
+        Vec::new()
+    }
 }
 
 /// Returns a list of all builtin encryption algorithms.
-#[cfg(feature = "default-algorithms")]
-pub(crate) fn encryption_algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
-    russh_algorithms::encryption::algorithms()
+pub(crate) fn encryption_algorithms() -> AlgorithmList<Box<dyn EncryptionAlgorithm>> {
+    let mut list = AlgorithmList::new();
+
+    #[cfg(feature = "default-algorithms")]
+    russh_algorithms::encryption::add_algorithms(|alg| {
+        list.add_raw(alg, AddIn::Back).unwrap();
+    });
+
+    list
 }
 
 /// Returns a list of all builtin MAC algorithms.
-#[cfg(feature = "default-algorithms")]
-pub(crate) fn mac_algorithms() -> Vec<Box<dyn MacAlgorithm>> {
-    russh_algorithms::mac::algorithms()
+pub(crate) fn mac_algorithms() -> AlgorithmList<Box<dyn MacAlgorithm>> {
+    let mut list = AlgorithmList::new();
+
+    #[cfg(feature = "default-algorithms")]
+    russh_algorithms::mac::add_algorithms(|alg| {
+        list.add_raw(alg, AddIn::Back).unwrap();
+    });
+
+    list
 }
 
 /// Returns a list of all builtin compression algorithms.
-#[cfg(feature = "default-algorithms")]
-pub(crate) fn compression_algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
-    russh_algorithms::compression::algorithms()
-}
+pub(crate) fn compression_algorithms() -> AlgorithmList<Box<dyn CompressionAlgorithm>> {
+    let mut list = AlgorithmList::new();
 
-// Without default algorithms simply return no algorithms
+    #[cfg(feature = "default-algorithms")]
+    russh_algorithms::compression::add_algorithms(|alg| {
+        list.add_raw(alg, AddIn::Back).unwrap();
+    });
 
-/// Returns a list of all builtin key exchange algorithms.
-#[cfg(not(feature = "default-algorithms"))]
-pub(crate) fn key_exchange_algorithms() -> Vec<Box<dyn KeyExchangeAlgorithm>> {
-    vec![]
-}
-
-/// Returns a list of all builtin host key algorithms.
-#[cfg(not(feature = "default-algorithms"))]
-pub(crate) fn host_key_algorithms() -> Vec<Box<dyn HostKeyAlgorithm>> {
-    vec![]
-}
-
-/// Returns a list of all builtin encryption algorithms.
-#[cfg(not(feature = "default-algorithms"))]
-pub(crate) fn encryption_algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
-    vec![]
-}
-
-/// Returns a list of all builtin MAC algorithms.
-#[cfg(not(feature = "default-algorithms"))]
-pub(crate) fn mac_algorithms() -> Vec<Box<dyn MacAlgorithm>> {
-    vec![]
-}
-
-/// Returns a list of all builtin compression algorithms.
-#[cfg(not(feature = "default-algorithms"))]
-pub(crate) fn compression_algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
-    vec![]
+    list
 }

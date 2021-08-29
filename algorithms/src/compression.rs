@@ -20,7 +20,7 @@ impl None {
     }
 
     /// Creates a new boxed `none` compression algorithm.
-    pub fn boxed() -> Box<None> {
+    pub fn boxed() -> Box<dyn CompressionAlgorithm> {
         Box::new(None::new())
     }
 }
@@ -52,7 +52,12 @@ impl CompressionAlgorithm for None {
     }
 }
 
-/// Returns all the compression algorithms defined by this crate.
-pub fn algorithms() -> Vec<Box<dyn CompressionAlgorithm>> {
-    vec![None::boxed()]
+/// Calls the `add` function with all compression algorithms defined and enabled in this crate.
+pub fn add_algorithms<Entry, F>(mut add: F)
+where
+    Box<dyn CompressionAlgorithm>: Into<Entry>,
+    F: FnMut(Entry),
+{
+    // This is the same order used by OpenSSH
+    add(None::boxed().into());
 }

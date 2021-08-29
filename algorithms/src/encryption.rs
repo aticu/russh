@@ -28,7 +28,7 @@ impl None {
     }
 
     /// Creates a new boxed `none` encryption algorithm.
-    pub fn boxed() -> Box<None> {
+    pub fn boxed() -> Box<dyn EncryptionAlgorithm> {
         Box::new(None::new())
     }
 }
@@ -74,16 +74,18 @@ impl EncryptionAlgorithm for None {
     }
 }
 
-/// Returns all the encryption algorithms defined by this crate.
-pub fn algorithms() -> Vec<Box<dyn EncryptionAlgorithm>> {
+/// Calls the `add` function with all encryption algorithms defined and enabled in this crate.
+pub fn add_algorithms<Entry, F>(mut add: F)
+where
+    Box<dyn EncryptionAlgorithm>: Into<Entry>,
+    F: FnMut(Entry),
+{
     // This is the same order used by OpenSSH
-    vec![
-        #[cfg(feature = "aes128-ctr")]
-        Aes128Ctr::boxed(),
-        #[cfg(feature = "aes192-ctr")]
-        Aes192Ctr::boxed(),
-        #[cfg(feature = "aes256-ctr")]
-        Aes256Ctr::boxed(),
-        None::boxed(),
-    ]
+    #[cfg(feature = "aes128-ctr")]
+    add(Aes128Ctr::boxed().into());
+    #[cfg(feature = "aes192-ctr")]
+    add(Aes192Ctr::boxed().into());
+    #[cfg(feature = "aes256-ctr")]
+    add(Aes256Ctr::boxed().into());
+    add(None::boxed().into());
 }

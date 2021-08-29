@@ -12,36 +12,68 @@ use russh_definitions::{
 use std::borrow::Cow;
 
 use crate::errors::{InvalidAlgorithmError, LoadHostKeyError};
+pub(crate) use list::{AddIn, AlgorithmList};
 
 mod key_expansion;
+mod list;
 
 pub(crate) mod builtin;
 pub(crate) mod helpers;
 
+impl list::Nameable for Box<dyn KeyExchangeAlgorithm> {
+    fn name(&self) -> &'static str {
+        self.as_basic_algorithm().name()
+    }
+}
+
+impl list::Nameable for Box<dyn HostKeyAlgorithm> {
+    fn name(&self) -> &'static str {
+        self.as_basic_algorithm().name()
+    }
+}
+
+impl list::Nameable for Box<dyn EncryptionAlgorithm> {
+    fn name(&self) -> &'static str {
+        self.as_basic_algorithm().name()
+    }
+}
+
+impl list::Nameable for Box<dyn MacAlgorithm> {
+    fn name(&self) -> &'static str {
+        self.as_basic_algorithm().name()
+    }
+}
+
+impl list::Nameable for Box<dyn CompressionAlgorithm> {
+    fn name(&self) -> &'static str {
+        self.as_basic_algorithm().name()
+    }
+}
+
 /// Contains the algorithms available for communication.
 #[derive(Debug)]
-pub(crate) struct AvailableAlgorithms {
+pub(crate) struct ConnectionAlgorithms {
     /// The available key exchange algorithms.
     pub(crate) kex: Vec<Box<dyn KeyExchangeAlgorithm>>,
     /// The available host key algorithms.
     pub(crate) host_key: Vec<Box<dyn HostKeyAlgorithm>>,
     /// The available encryption algorithms for client to server communication.
-    pub(crate) encryption_c2s: Vec<Box<dyn EncryptionAlgorithm>>,
+    pub(crate) encryption_c2s: AlgorithmList<Box<dyn EncryptionAlgorithm>>,
     /// The available encryption algorithms for server to client communication.
-    pub(crate) encryption_s2c: Vec<Box<dyn EncryptionAlgorithm>>,
+    pub(crate) encryption_s2c: AlgorithmList<Box<dyn EncryptionAlgorithm>>,
     /// The available MAC algorithms for client to server communication.
-    pub(crate) mac_c2s: Vec<Box<dyn MacAlgorithm>>,
+    pub(crate) mac_c2s: AlgorithmList<Box<dyn MacAlgorithm>>,
     /// The available MAC algorithms for server to client communication.
-    pub(crate) mac_s2c: Vec<Box<dyn MacAlgorithm>>,
+    pub(crate) mac_s2c: AlgorithmList<Box<dyn MacAlgorithm>>,
     /// The available compression algorithms for client to server communication.
-    pub(crate) compression_c2s: Vec<Box<dyn CompressionAlgorithm>>,
+    pub(crate) compression_c2s: AlgorithmList<Box<dyn CompressionAlgorithm>>,
     /// The available compression algorithms for server to client communication.
-    pub(crate) compression_s2c: Vec<Box<dyn CompressionAlgorithm>>,
+    pub(crate) compression_s2c: AlgorithmList<Box<dyn CompressionAlgorithm>>,
 }
 
-impl Default for AvailableAlgorithms {
-    fn default() -> AvailableAlgorithms {
-        AvailableAlgorithms {
+impl Default for ConnectionAlgorithms {
+    fn default() -> ConnectionAlgorithms {
+        ConnectionAlgorithms {
             kex: builtin::key_exchange_algorithms(),
             host_key: builtin::host_key_algorithms(),
             encryption_c2s: builtin::encryption_algorithms(),
@@ -54,35 +86,13 @@ impl Default for AvailableAlgorithms {
     }
 }
 
-impl AvailableAlgorithms {
+impl ConnectionAlgorithms {
     /// Checks if all the contained algorithms are valid.
     pub(crate) fn all_algorithms_valid(&self) -> Result<(), InvalidAlgorithmError> {
         let algorithms = self.kex[..]
             .iter()
             .map(|a| a.as_basic_algorithm())
-            .chain(self.host_key[..].iter().map(|a| a.as_basic_algorithm()))
-            .chain(
-                self.encryption_c2s[..]
-                    .iter()
-                    .map(|a| a.as_basic_algorithm()),
-            )
-            .chain(
-                self.encryption_s2c[..]
-                    .iter()
-                    .map(|a| a.as_basic_algorithm()),
-            )
-            .chain(self.mac_c2s[..].iter().map(|a| a.as_basic_algorithm()))
-            .chain(self.mac_s2c[..].iter().map(|a| a.as_basic_algorithm()))
-            .chain(
-                self.compression_c2s[..]
-                    .iter()
-                    .map(|a| a.as_basic_algorithm()),
-            )
-            .chain(
-                self.compression_s2c[..]
-                    .iter()
-                    .map(|a| a.as_basic_algorithm()),
-            );
+            .chain(self.host_key[..].iter().map(|a| a.as_basic_algorithm()));
 
         for algorithm in algorithms {
             helpers::is_valid_algorithm(algorithm)?;
@@ -133,32 +143,32 @@ impl AvailableAlgorithms {
 
     /// Returns the name of the first algorithm role with a missing required "none" algorithm.
     pub(crate) fn required_none_missing(&self) -> Option<AlgorithmRole> {
-        if self.encryption_c2s.iter().all(|a| a.name() != "none") {
+        if !self.encryption_c2s.contains_algorithm("none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Encryption,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self.encryption_s2c.iter().all(|a| a.name() != "none") {
+        } else if !self.encryption_s2c.contains_algorithm("none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Encryption,
                 Some(AlgorithmDirection::ServerToClient),
             ))
-        } else if self.mac_c2s.iter().all(|a| a.name() != "none") {
+        } else if !self.mac_c2s.contains_algorithm("none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Mac,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self.mac_s2c.iter().all(|a| a.name() != "none") {
+        } else if !self.mac_s2c.contains_algorithm("none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Mac,
                 Some(AlgorithmDirection::ServerToClient),
             ))
-        } else if self.compression_c2s.iter().all(|a| a.name() != "none") {
+        } else if !self.compression_c2s.contains_algorithm("none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Compression,
                 Some(AlgorithmDirection::ClientToServer),
             ))
-        } else if self.compression_s2c.iter().all(|a| a.name() != "none") {
+        } else if !self.compression_s2c.contains_algorithm("none") {
             Some(AlgorithmRole(
                 AlgorithmCategory::Compression,
                 Some(AlgorithmDirection::ServerToClient),
@@ -213,34 +223,20 @@ impl AvailableAlgorithms {
     }
 
     /// Unloads the keys for the given chosen algorithms.
+    ///
+    /// # Panics
+    /// May panic if no algorithms were previously chosen or no algorithm keys were previously
+    /// loaded.
     pub(crate) fn unload_algorithm_keys(&mut self, chosen_algorithms: &ChosenAlgorithms) {
-        let encryption_c2s = self
-            .encryption_c2s
-            .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.encryption_c2s)
-            .expect("chosen algorithm exists in the available algorithms");
-        let encryption_s2c = self
-            .encryption_s2c
-            .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.encryption_s2c)
-            .expect("chosen algorithm exists in the available algorithms");
-        let mac_c2s = if let Some(chosen_alg) = chosen_algorithms.mac_c2s {
-            Some(
-                self.mac_c2s
-                    .iter_mut()
-                    .find(|a| a.name() == chosen_alg)
-                    .expect("chosen algorithm exists in the available algorithms"),
-            )
+        let encryption_c2s = self.encryption_c2s.current();
+        let encryption_s2c = self.encryption_s2c.current();
+        let mac_c2s = if chosen_algorithms.mac_c2s.is_some() {
+            Some(self.mac_c2s.current())
         } else {
             None
         };
-        let mac_s2c = if let Some(chosen_alg) = chosen_algorithms.mac_s2c {
-            Some(
-                self.mac_s2c
-                    .iter_mut()
-                    .find(|a| a.name() == chosen_alg)
-                    .expect("chosen algorithm exists in the available algorithms"),
-            )
+        let mac_s2c = if chosen_algorithms.mac_s2c.is_some() {
+            Some(self.mac_s2c.current())
         } else {
             None
         };
@@ -256,6 +252,9 @@ impl AvailableAlgorithms {
     }
 
     /// Loads the correct keys into the chosen algorithms.
+    ///
+    /// # Panics
+    /// May panic if no algorithms were previously chosen.
     pub(crate) fn load_algorithm_keys(
         &mut self,
         chosen_algorithms: &ChosenAlgorithms,
@@ -264,33 +263,19 @@ impl AvailableAlgorithms {
         exchange_hash: &[u8],
         session_id: &[u8],
     ) {
-        let encryption_c2s = self
-            .encryption_c2s
-            .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.encryption_c2s)
-            .expect("chosen algorithm exists in the available algorithms");
-        let encryption_s2c = self
-            .encryption_s2c
-            .iter_mut()
-            .find(|a| a.name() == chosen_algorithms.encryption_s2c)
-            .expect("chosen algorithm exists in the available algorithms");
-        let mac_c2s = if let Some(chosen_alg) = chosen_algorithms.mac_c2s {
-            Some(
-                self.mac_c2s
-                    .iter_mut()
-                    .find(|a| a.name() == chosen_alg)
-                    .expect("chosen algorithm exists in the available algorithms"),
-            )
+        self.encryption_c2s.choose(chosen_algorithms.encryption_c2s);
+        self.encryption_s2c.choose(chosen_algorithms.encryption_s2c);
+        let encryption_c2s = self.encryption_c2s.current();
+        let encryption_s2c = self.encryption_s2c.current();
+        let mac_c2s = if let Some(mac_c2s) = chosen_algorithms.mac_c2s {
+            self.mac_c2s.choose(mac_c2s);
+            Some(self.mac_c2s.current())
         } else {
             None
         };
-        let mac_s2c = if let Some(chosen_alg) = chosen_algorithms.mac_s2c {
-            Some(
-                self.mac_s2c
-                    .iter_mut()
-                    .find(|a| a.name() == chosen_alg)
-                    .expect("chosen algorithm exists in the available algorithms"),
-            )
+        let mac_s2c = if let Some(mac_s2c) = chosen_algorithms.mac_s2c {
+            self.mac_s2c.choose(mac_s2c);
+            Some(self.mac_s2c.current())
         } else {
             None
         };
@@ -358,21 +343,11 @@ impl ChosenAlgorithms {
     pub(crate) fn outgoing_from<'a>(
         &self,
         connection_role: &ConnectionRole,
-        algorithms: &'a mut AvailableAlgorithms,
+        algorithms: &'a mut ConnectionAlgorithms,
     ) -> Option<PacketAlgorithms<'a>> {
-        // TODO: This happens for every packet. Consider speeding it up, by saving the indices as
-        // well.
         let encryption_algorithm = match connection_role {
-            ConnectionRole::Client => algorithms
-                .encryption_c2s
-                .iter_mut()
-                .find(|a| a.name() == self.encryption_c2s)
-                .map(|a| &mut **a)?,
-            ConnectionRole::Server => algorithms
-                .encryption_s2c
-                .iter_mut()
-                .find(|a| a.name() == self.encryption_s2c)
-                .map(|a| &mut **a)?,
+            ConnectionRole::Client => &mut **algorithms.encryption_c2s.current(),
+            ConnectionRole::Server => &mut **algorithms.encryption_s2c.current(),
         };
 
         let mac_needed = encryption_algorithm.mac_size().is_none();
@@ -381,40 +356,20 @@ impl ChosenAlgorithms {
             ConnectionRole::Client => PacketAlgorithms {
                 encryption: encryption_algorithm,
                 mac: if mac_needed {
-                    Some(
-                        algorithms
-                            .mac_c2s
-                            .iter_mut()
-                            .find(|a| Some(a.name()) == self.mac_c2s)
-                            .map(|a| &mut **a)?,
-                    )
+                    Some(&mut **algorithms.mac_c2s.current())
                 } else {
                     None
                 },
-                compression: algorithms
-                    .compression_c2s
-                    .iter_mut()
-                    .find(|a| a.name() == self.compression_c2s)
-                    .map(|a| &mut **a)?,
+                compression: &mut **algorithms.compression_c2s.current(),
             },
             ConnectionRole::Server => PacketAlgorithms {
                 encryption: encryption_algorithm,
                 mac: if mac_needed {
-                    Some(
-                        algorithms
-                            .mac_s2c
-                            .iter_mut()
-                            .find(|a| Some(a.name()) == self.mac_s2c)
-                            .map(|a| &mut **a)?,
-                    )
+                    Some(&mut **algorithms.mac_s2c.current())
                 } else {
                     None
                 },
-                compression: algorithms
-                    .compression_s2c
-                    .iter_mut()
-                    .find(|a| a.name() == self.compression_s2c)
-                    .map(|a| &mut **a)?,
+                compression: &mut **algorithms.compression_s2c.current(),
             },
         })
     }
@@ -422,7 +377,7 @@ impl ChosenAlgorithms {
 
 /// Contains the algorithm list used during initialization.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct AlgorithmList<'a> {
+pub(crate) struct AlgorithmNameList<'a> {
     /// The key exchange algorithms available.
     pub(crate) kex: Vec<Cow<'a, str>>,
     /// The host key algorithms available.
@@ -441,13 +396,13 @@ pub(crate) struct AlgorithmList<'a> {
     pub(crate) compression_s2c: Vec<Cow<'a, str>>,
 }
 
-impl AlgorithmList<'static> {
+impl AlgorithmNameList<'static> {
     /// Creates the algorithm list from the available algorithms.
     pub(crate) fn from_available(
-        available_algorithms: &AvailableAlgorithms,
+        available_algorithms: &ConnectionAlgorithms,
         allow_none_algorithms: bool,
-    ) -> AlgorithmList<'static> {
-        AlgorithmList {
+    ) -> AlgorithmNameList<'static> {
+        AlgorithmNameList {
             kex: available_algorithms
                 .kex
                 .iter()
@@ -460,38 +415,18 @@ impl AlgorithmList<'static> {
                 .collect(),
             encryption_c2s: available_algorithms
                 .encryption_c2s
-                .iter()
-                .filter(|a| allow_none_algorithms || a.name() != "none")
-                .map(|a| Cow::Borrowed(a.name()))
-                .collect(),
+                .to_name_list(allow_none_algorithms),
             encryption_s2c: available_algorithms
                 .encryption_s2c
-                .iter()
-                .filter(|a| allow_none_algorithms || a.name() != "none")
-                .map(|a| Cow::Borrowed(a.name()))
-                .collect(),
+                .to_name_list(allow_none_algorithms),
             mac_c2s: available_algorithms
                 .mac_c2s
-                .iter()
-                .filter(|a| allow_none_algorithms || a.name() != "none")
-                .map(|a| Cow::Borrowed(a.name()))
-                .collect(),
+                .to_name_list(allow_none_algorithms),
             mac_s2c: available_algorithms
                 .mac_s2c
-                .iter()
-                .filter(|a| allow_none_algorithms || a.name() != "none")
-                .map(|a| Cow::Borrowed(a.name()))
-                .collect(),
-            compression_c2s: available_algorithms
-                .compression_c2s
-                .iter()
-                .map(|a| Cow::Borrowed(a.name()))
-                .collect(),
-            compression_s2c: available_algorithms
-                .compression_s2c
-                .iter()
-                .map(|a| Cow::Borrowed(a.name()))
-                .collect(),
+                .to_name_list(allow_none_algorithms),
+            compression_c2s: available_algorithms.compression_c2s.to_name_list(true),
+            compression_s2c: available_algorithms.compression_s2c.to_name_list(true),
         }
     }
 }

@@ -37,7 +37,7 @@ macro_rules! impl_hmac_sha {
             #[doc = "Creates a new boxed `"]
             #[doc = $name_str]
             #[doc = "` MAC algorithm."]
-            pub fn boxed() -> Box<$name> {
+            pub fn boxed() -> Box<dyn MacAlgorithm> {
                 Box::new($name::new())
             }
 

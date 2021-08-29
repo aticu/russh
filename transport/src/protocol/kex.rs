@@ -15,7 +15,7 @@ use std::{
 };
 
 use crate::{
-    algorithms::{AlgorithmList, AvailableAlgorithms},
+    algorithms::{AlgorithmNameList, ConnectionAlgorithms},
     errors::{CommunicationError, KeyExchangeProcedureError, ParseError},
     input_handler::{InputHandler, InputStream},
     output_handler::{OutputHandler, OutputStream},
@@ -117,7 +117,7 @@ pub(in crate::protocol) struct KexinitPacket<'a> {
     /// The random cookie in the packet.
     pub(in crate::protocol) cookie: [u8; 16],
     /// The algorithm list in the packet.
-    pub(in crate::protocol) algorithm_list: AlgorithmList<'a>,
+    pub(in crate::protocol) algorithm_list: AlgorithmNameList<'a>,
     /// Indicates if a guessed key exchange packet follows the SSH_MSG_KEXINIT packet.
     pub(in crate::protocol) first_kex_packet_follows: bool,
 }
@@ -149,7 +149,7 @@ pub(in crate::protocol) fn parse_kexinit(input: &[u8]) -> Result<KexinitPacket, 
 
     Ok(KexinitPacket {
         cookie: packet.cookie,
-        algorithm_list: AlgorithmList {
+        algorithm_list: AlgorithmNameList {
             kex: packet.kex_algorithms.into_owned(),
             host_key: packet.server_host_key_algorithms.into_owned(),
             encryption_c2s: packet.encryption_algorithms_client_to_server.into_owned(),
@@ -192,10 +192,10 @@ pub(in crate::protocol) fn write_kexinit(
 
 /// Negotiates a key exchange algorithm to use.
 pub(in crate::protocol) fn negotiate_algorithm(
-    own_list: &AlgorithmList<'static>,
-    other_list: &AlgorithmList,
+    own_list: &AlgorithmNameList<'static>,
+    other_list: &AlgorithmNameList,
     own_role: &ConnectionRole,
-    available_algorithms: &AvailableAlgorithms,
+    available_algorithms: &ConnectionAlgorithms,
 ) -> Result<&'static str, KeyExchangeProcedureError> {
     let own_kex_list = &own_list.kex;
     let other_kex_list = &other_list.kex;
@@ -289,7 +289,7 @@ mod tests {
     fn kexinit_packet() {
         let mut target = Vec::new();
 
-        let list = AlgorithmList {
+        let list = AlgorithmNameList {
             kex: vec![
                 "diffie-hellman-group1-sha1".into(),
                 "diffie-hellman-group14-sha1".into(),

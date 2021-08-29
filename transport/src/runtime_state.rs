@@ -8,7 +8,7 @@ use russh_definitions::{
 use std::fmt;
 
 use crate::{
-    algorithms::{AlgorithmList, AvailableAlgorithms, ChosenAlgorithms, PacketAlgorithms},
+    algorithms::{AlgorithmNameList, ChosenAlgorithms, ConnectionAlgorithms, PacketAlgorithms},
     version::VersionInformation,
 };
 
@@ -19,12 +19,12 @@ pub(crate) struct RuntimeState {
     /// The list of available algorithms.
     ///
     /// This exists to preverse the original algorithms order, while having the ability
-    /// to move algorithms out of the `AvailableAlgorithms`.
-    algorithm_list: AlgorithmList<'static>,
+    /// to move algorithms out of the `ConnectionAlgorithms`.
+    algorithm_list: AlgorithmNameList<'static>,
     /// The algorithms that are chosen to be used.
     chosen_algorithms: ChosenAlgorithms,
     /// The algorithms that are available.
-    available_algorithms: AvailableAlgorithms,
+    pub(crate) available_algorithms: ConnectionAlgorithms,
     /// The role of the handler in the connection.
     connection_role: ConnectionRole,
     /// The random number generator used for the connection.
@@ -50,14 +50,14 @@ impl RuntimeState {
     /// Creates a new runtime state.
     pub(crate) fn new(
         version_info: VersionInformation,
-        available_algorithms: AvailableAlgorithms,
+        available_algorithms: ConnectionAlgorithms,
         connection_role: ConnectionRole,
         rng: Box<dyn CryptoRngCore>,
         allow_none_algorithms: bool,
     ) -> RuntimeState {
         RuntimeState {
             version_info,
-            algorithm_list: AlgorithmList::from_available(
+            algorithm_list: AlgorithmNameList::from_available(
                 &available_algorithms,
                 allow_none_algorithms,
             ),
@@ -79,7 +79,7 @@ impl RuntimeState {
     }
 
     /// Returns the list of available algorithms.
-    pub(crate) fn algorithm_list(&self) -> &AlgorithmList<'static> {
+    pub(crate) fn algorithm_list(&self) -> &AlgorithmNameList<'static> {
         &self.algorithm_list
     }
 
@@ -110,7 +110,7 @@ impl RuntimeState {
     }
 
     /// Returns a reference to the available algorithms.
-    pub(crate) fn available_algorithms(&self) -> &AvailableAlgorithms {
+    pub(crate) fn available_algorithms(&self) -> &ConnectionAlgorithms {
         &self.available_algorithms
     }
 

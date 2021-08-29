@@ -63,12 +63,17 @@ async fn default_server_with_openssh() {
 
     let ed25519_key = ed25519_dalek::Keypair::generate(&mut rand::thread_rng()).to_bytes();
 
-    builder
+    let mut handler = builder
         .load_host_key("ssh-ed25519", &ed25519_key)
         .expect("host key could not be successfully loaded")
         .build()
         .await
         .expect("server could not successfully exchange keys with ssh");
+
+    assert_eq!(
+        handler.next_packet().await.unwrap(),
+        &b"\x05\x00\x00\x00\x0cssh-userauth"[..]
+    );
 
     let output = ssh
         .run_to_completion()

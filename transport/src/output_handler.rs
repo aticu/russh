@@ -155,7 +155,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        algorithms::AvailableAlgorithms,
+        algorithms::ConnectionAlgorithms,
         errors::CommunicationError,
         input_handler::InputHandler,
         runtime_state::RuntimeState,
@@ -171,7 +171,7 @@ mod tests {
 
         let mut runtime_state = RuntimeState::new(
             VersionInformation::new("test").unwrap(),
-            AvailableAlgorithms::default(),
+            ConnectionAlgorithms::default(),
             ConnectionRole::Client,
             Box::new(ChaCha20Rng::from_seed(Default::default())),
             true,
@@ -213,7 +213,7 @@ mod tests {
 
         let mut runtime_state = RuntimeState::new(
             VersionInformation::new("test").unwrap(),
-            AvailableAlgorithms::default(),
+            ConnectionAlgorithms::default(),
             ConnectionRole::Client,
             Box::new(ChaCha20Rng::from_seed(Default::default())),
             true,
@@ -245,7 +245,7 @@ mod tests {
 
         let mut runtime_state = RuntimeState::new(
             VersionInformation::new("test").unwrap(),
-            AvailableAlgorithms::default(),
+            ConnectionAlgorithms::default(),
             ConnectionRole::Server,
             Box::new(ChaCha20Rng::from_seed(Default::default())),
             true,

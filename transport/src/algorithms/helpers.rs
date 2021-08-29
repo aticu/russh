@@ -29,12 +29,16 @@ fn is_valid_domain(domain: &str) -> bool {
 
 /// Checks of the given algorithm name is a valid algorithm name according to
 /// [RFC4351](https://tools.ietf.org/html/rfc4251#section-6).
-fn valid_algorithm_name(name: &str) -> Result<(), InvalidNameError> {
+pub(crate) fn validate_algorithm_name(name: &str) -> Result<(), InvalidNameError> {
     if name.is_empty() {
-        Err(InvalidNameError::EmptyName)
-    } else if name.len() > 64 {
-        Err(InvalidNameError::TooLong)
-    } else if let Some(result) = name.chars().find_map(|c| {
+        return Err(InvalidNameError::EmptyName);
+    }
+
+    if name.len() > 64 {
+        return Err(InvalidNameError::TooLong);
+    }
+
+    if let Some(result) = name.chars().find_map(|c| {
         if c == ',' {
             Some(Err(InvalidNameError::CommaUsed))
         } else if !c.is_ascii() {
@@ -47,32 +51,34 @@ fn valid_algorithm_name(name: &str) -> Result<(), InvalidNameError> {
             None
         }
     }) {
-        result
-    } else {
-        let mut iter = name.split('@');
+        return result;
+    }
 
-        iter.next();
+    let mut iter = name.split('@');
 
-        if let Some(domain) = iter.next() {
-            if !is_valid_domain(domain) {
-                return Err(InvalidNameError::InvalidDomain);
-            }
-        }
+    iter.next();
 
-        if iter.next().is_none() {
-            Ok(())
-        } else {
-            Err(InvalidNameError::TooManyAtSymbols)
+    if let Some(domain) = iter.next() {
+        if !is_valid_domain(domain) {
+            return Err(InvalidNameError::InvalidDomain);
         }
     }
+
+    if iter.next().is_some() {
+        return Err(InvalidNameError::TooManyAtSymbols);
+    }
+
+    Ok(())
 }
 
 /// Attempts to validate the validity of an algorithm implementation.
 pub(crate) fn is_valid_algorithm(algorithm: &dyn Algorithm) -> Result<(), InvalidAlgorithmError> {
-    valid_algorithm_name(algorithm.name()).map_err(|err| InvalidAlgorithmError::InvalidName {
-        algorithm_name: algorithm.name().into(),
-        algorithm_category: algorithm.category(),
-        name_error: err,
+    validate_algorithm_name(algorithm.name()).map_err(|err| {
+        InvalidAlgorithmError::InvalidName {
+            algorithm_name: algorithm.name().into(),
+            algorithm_category: algorithm.category(),
+            name_error: err,
+        }
     })?;
 
     Ok(())
@@ -84,49 +90,52 @@ mod tests {
 
     #[test]
     fn algorithm_name() {
-        assert_eq!(valid_algorithm_name("3des-cbc"), Ok(()));
-        assert_eq!(valid_algorithm_name("aes128-cbc"), Ok(()));
+        assert_eq!(validate_algorithm_name("3des-cbc"), Ok(()));
+        assert_eq!(validate_algorithm_name("aes128-cbc"), Ok(()));
         assert_eq!(
-            valid_algorithm_name("some-algorithm@example123.com"),
+            validate_algorithm_name("some-algorithm@example123.com"),
             Ok(())
         );
-        assert_eq!(valid_algorithm_name("some-algorithm@com"), Ok(()));
+        assert_eq!(validate_algorithm_name("some-algorithm@com"), Ok(()));
 
         assert_eq!(
-            valid_algorithm_name("test@-dash.prefix"),
+            validate_algorithm_name("test@-dash.prefix"),
             Err(InvalidNameError::InvalidDomain)
         );
         assert_eq!(
-            valid_algorithm_name("test@trailing-.dash"),
+            validate_algorithm_name("test@trailing-.dash"),
             Err(InvalidNameError::InvalidDomain)
         );
         assert_eq!(
-            valid_algorithm_name("test@empty..label"),
+            validate_algorithm_name("test@empty..label"),
             Err(InvalidNameError::InvalidDomain)
         );
         assert_eq!(
-            valid_algorithm_name("test@example.com@double-at.not-allowed"),
+            validate_algorithm_name("test@example.com@double-at.not-allowed"),
             Err(InvalidNameError::TooManyAtSymbols)
         );
         assert_eq!(
-            valid_algorithm_name("this-is-a-very-long-algorithm-name-that-will-exceed-the-permitted-length-by-quite-a-bit-and-therefore-fail-the-test"),
+            validate_algorithm_name("this-is-a-very-long-algorithm-name-that-will-exceed-the-permitted-length-by-quite-a-bit-and-therefore-fail-the-test"),
             Err(InvalidNameError::TooLong)
         );
         assert_eq!(
-            valid_algorithm_name("commas,are,not,allowed"),
+            validate_algorithm_name("commas,are,not,allowed"),
             Err(InvalidNameError::CommaUsed)
         );
-        assert_eq!(valid_algorithm_name(""), Err(InvalidNameError::EmptyName));
         assert_eq!(
-            valid_algorithm_name("non\u{f4}ascii-not-allowed"),
+            validate_algorithm_name(""),
+            Err(InvalidNameError::EmptyName)
+        );
+        assert_eq!(
+            validate_algorithm_name("non\u{f4}ascii-not-allowed"),
             Err(InvalidNameError::NonAscii('\u{f4}'))
         );
         assert_eq!(
-            valid_algorithm_name("control\x11ascii-not-allowed"),
+            validate_algorithm_name("control\x11ascii-not-allowed"),
             Err(InvalidNameError::NonPrintable('\x11'))
         );
         assert_eq!(
-            valid_algorithm_name("whitespace not allowed"),
+            validate_algorithm_name("whitespace not allowed"),
             Err(InvalidNameError::Whitespace(' '))
         );
     }

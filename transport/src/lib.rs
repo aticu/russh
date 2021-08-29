@@ -19,7 +19,7 @@ use russh_definitions::{
 use std::{borrow::Cow, fmt};
 
 use crate::{
-    algorithms::AvailableAlgorithms,
+    algorithms::{AddIn, ConnectionAlgorithms},
     errors::{
         BuildError, CommunicationError, InvalidAlgorithmError, LoadHostKeyError,
         ServiceRequestError,
@@ -110,8 +110,8 @@ impl<Input: InputStream, Output: OutputStream> Handler<Input, Output> {
 pub struct Builder<Input: InputStream, Output: OutputStream> {
     /// The version information for the SSH transport handler.
     version_info: Option<VersionInformation>,
-    /// The the algorithms available to use during communications.
-    available_algorithms: AvailableAlgorithms,
+    /// The algorithms used by the SSH connection.
+    connection_algorithms: ConnectionAlgorithms,
     /// The source where the input for the ssh transport layer will come from.
     input: Input,
     /// The sink where the output of the ssh transport layer will be written to.
@@ -132,7 +132,7 @@ impl<Input: InputStream + fmt::Debug, Output: OutputStream + fmt::Debug> fmt::De
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Builder")
             .field("version_info", &self.version_info)
-            .field("available_algorithms", &self.available_algorithms)
+            .field("connection_algorithms", &self.connection_algorithms)
             .field("input", &self.input)
             .field("output", &self.output)
             .field("connection_role", &self.connection_role)
@@ -163,7 +163,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         // TODO: handle languages
         Builder {
             version_info: None,
-            available_algorithms: Default::default(),
+            connection_algorithms: Default::default(),
             input,
             output,
             connection_role,
@@ -201,7 +201,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     ///
     /// An implementation of these can be found in the `russh-algorithms` crate.
     pub fn clear_algorithms(mut self) -> Self {
-        self.available_algorithms.clear();
+        self.connection_algorithms.clear();
 
         self
     }
@@ -214,7 +214,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| builder.available_algorithms.kex.insert(0, a),
+            |builder, a| builder.connection_algorithms.kex.insert(0, a),
         )
     }
 
@@ -226,7 +226,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| builder.available_algorithms.host_key.insert(0, a),
+            |builder, a| builder.connection_algorithms.host_key.insert(0, a),
         )
     }
 
@@ -240,10 +240,15 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             algorithm,
             |builder, a| {
                 builder
-                    .available_algorithms
+                    .connection_algorithms
                     .encryption_c2s
-                    .insert(0, a.clone());
-                builder.available_algorithms.encryption_s2c.insert(0, a);
+                    .add::<Box<dyn EncryptionAlgorithm>>(a.clone(), AddIn::Front)
+                    .unwrap();
+                builder
+                    .connection_algorithms
+                    .encryption_s2c
+                    .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
             },
         )
     }
@@ -256,7 +261,13 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| builder.available_algorithms.encryption_c2s.insert(0, a),
+            |builder, a| {
+                builder
+                    .connection_algorithms
+                    .encryption_c2s
+                    .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
+            },
         )
     }
 
@@ -268,7 +279,13 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| builder.available_algorithms.encryption_s2c.insert(0, a),
+            |builder, a| {
+                builder
+                    .connection_algorithms
+                    .encryption_s2c
+                    .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
+            },
         )
     }
 
@@ -281,8 +298,16 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
             |builder, a| {
-                builder.available_algorithms.mac_c2s.insert(0, a.clone());
-                builder.available_algorithms.mac_s2c.insert(0, a);
+                builder
+                    .connection_algorithms
+                    .mac_c2s
+                    .add::<Box<dyn MacAlgorithm>>(a.clone(), AddIn::Front)
+                    .unwrap();
+                builder
+                    .connection_algorithms
+                    .mac_s2c
+                    .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
             },
         )
     }
@@ -295,7 +320,13 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| builder.available_algorithms.mac_c2s.insert(0, a),
+            |builder, a| {
+                builder
+                    .connection_algorithms
+                    .mac_c2s
+                    .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
+            },
         )
     }
 
@@ -307,7 +338,13 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| builder.available_algorithms.mac_s2c.insert(0, a),
+            |builder, a| {
+                builder
+                    .connection_algorithms
+                    .mac_s2c
+                    .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
+            },
         )
     }
 
@@ -321,10 +358,15 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
             algorithm,
             |builder, a| {
                 builder
-                    .available_algorithms
+                    .connection_algorithms
                     .compression_c2s
-                    .insert(0, a.clone());
-                builder.available_algorithms.compression_s2c.insert(0, a);
+                    .add::<Box<dyn CompressionAlgorithm>>(a.clone(), AddIn::Front)
+                    .unwrap();
+                builder
+                    .connection_algorithms
+                    .compression_s2c
+                    .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
             },
         )
     }
@@ -337,7 +379,13 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| builder.available_algorithms.compression_c2s.insert(0, a),
+            |builder, a| {
+                builder
+                    .connection_algorithms
+                    .compression_c2s
+                    .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
+            },
         )
     }
 
@@ -349,7 +397,13 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         self.add_algorithm(
             |a| algorithms::helpers::is_valid_algorithm(a),
             algorithm,
-            |builder, a| builder.available_algorithms.compression_s2c.insert(0, a),
+            |builder, a| {
+                builder
+                    .connection_algorithms
+                    .compression_s2c
+                    .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
+                    .unwrap();
+            },
         )
     }
 
@@ -358,7 +412,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
     /// # Panics
     /// May panic if called again for the same algorithm after a successful call.
     pub fn load_host_key(mut self, algorithm: &str, key: &[u8]) -> Result<Self, LoadHostKeyError> {
-        self.available_algorithms.load_host_key(algorithm, key)?;
+        self.connection_algorithms.load_host_key(algorithm, key)?;
 
         Ok(self)
     }
@@ -401,21 +455,21 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
 
     /// Creates an `Handler` from the configured builder.
     pub async fn build(self) -> Result<Handler<Input, Output>, BuildError> {
-        self.available_algorithms
+        self.connection_algorithms
             .all_algorithms_valid()
             .map_err(BuildError::InvalidAlgorithm)?;
 
-        if let Some(role) = self.available_algorithms.empty_algorithm_role() {
+        if let Some(role) = self.connection_algorithms.empty_algorithm_role() {
             return Err(BuildError::EmptyAlgorithmRole(role));
         }
 
-        if let Some(role) = self.available_algorithms.required_none_missing() {
+        if let Some(role) = self.connection_algorithms.required_none_missing() {
             return Err(BuildError::RequiredNoneAlgorithmMissing(role));
         }
 
         let runtime_state = RuntimeState::new(
             self.version_info.unwrap_or_default(),
-            self.available_algorithms,
+            self.connection_algorithms,
             self.connection_role,
             self.rng.unwrap_or_else(|| Box::new(StdRng::from_entropy())),
             self.allow_none_algorithms,
@@ -436,11 +490,11 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
 /*
 #[cfg(test)]
 mod tests {
-    use super::*;
+use super::*;
 
-    #[test]
-    fn default_builder_works() {
-        assert!(Builder::new().build().is_ok());
-    }
+#[test]
+fn default_builder_works() {
+assert!(Builder::new().build().is_ok());
+}
 }
 */

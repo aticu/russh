@@ -9,7 +9,7 @@ use russh_definitions::{
 use std::borrow::Cow;
 
 use crate::{
-    algorithms::{AlgorithmList, AvailableAlgorithms, ChosenAlgorithms},
+    algorithms::{AlgorithmNameList, ChosenAlgorithms, ConnectionAlgorithms},
     errors::{
         CommunicationError, InitializationError, KeyExchangeProcedureError, ServiceRequestError,
     },
@@ -318,7 +318,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
 /// Performs the algorithm negotiation.
 fn negotiate_algorithms<'a>(
     runtime_state: &'a mut RuntimeState,
-    other_list: &AlgorithmList,
+    other_list: &AlgorithmNameList,
 ) -> Result<(&'static str, &'static str, ChosenAlgorithms), KeyExchangeProcedureError> {
     let own_list = runtime_state.algorithm_list();
     let own_role = runtime_state.connection_role();
@@ -335,8 +335,7 @@ fn negotiate_algorithms<'a>(
     )?;
     let mac_c2s_needed = available_algorithms
         .encryption_c2s
-        .iter()
-        .find(|alg| alg.name() == encryption_c2s)
+        .find_algorithm(encryption_c2s)
         .expect("chosen algorithm is available")
         .mac_size()
         .is_none();
@@ -374,8 +373,7 @@ fn negotiate_algorithms<'a>(
     )?;
     let mac_s2c_needed = available_algorithms
         .encryption_s2c
-        .iter()
-        .find(|alg| alg.name() == encryption_s2c)
+        .find_algorithm(encryption_s2c)
         .expect("chosen algorithm is available")
         .mac_size()
         .is_none();
@@ -425,10 +423,10 @@ fn negotiate_algorithms<'a>(
 
 /// Negotiates a server host key algorithm.
 fn negotiate_host_key_algorithm(
-    own_list: &AlgorithmList<'static>,
-    other_list: &AlgorithmList,
+    own_list: &AlgorithmNameList<'static>,
+    other_list: &AlgorithmNameList,
     connection_role: &ConnectionRole,
-    available_algorithms: &AvailableAlgorithms,
+    available_algorithms: &ConnectionAlgorithms,
     kex: &str,
 ) -> Result<&'static str, KeyExchangeProcedureError> {
     let kex_alg = available_algorithms

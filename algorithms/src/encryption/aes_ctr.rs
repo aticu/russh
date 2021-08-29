@@ -43,7 +43,7 @@ macro_rules! impl_aes_ctr {
             #[doc = "Creates a new boxed `"]
             #[doc = $name_str]
             #[doc = "` encryption algorithm."]
-            pub fn boxed() -> Box<Self> {
+            pub fn boxed() -> Box<dyn EncryptionAlgorithm> {
                 Box::new(Self::new())
             }
         }
