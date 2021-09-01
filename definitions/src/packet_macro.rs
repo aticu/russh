@@ -114,6 +114,7 @@
 ///     maximum_packet_size: u32,
 ///     // captures all data in the input after the other fields
 ///     channel_type_specific_data: std::borrow::Cow<'data, [u8]>,
+///     _phantom_lifetime: ::std::marker::PhantomData<&'data ()>,
 /// }
 /// ```
 ///
@@ -151,8 +152,8 @@
 ///         /// Field doc comment
 ///         #[cfg(foo)]
 ///         byte[16]  some_data
-///         /// This doc comment isn't used, but other attributes, such as the `cfg` below still
-///         /// apply in the `Parse` and `Compose` implementations
+///         /// This doc comment isn't present in the struct documentation, but the attributes,
+///         /// such as the `cfg` below still apply in the `Parse` and `Compose` implementations
 ///         #[cfg(foo)]
 ///         string    {b"constant-string"}
 ///     }
@@ -639,4 +640,5 @@ macro_rules! ssh_packet_internal {
 ///
 /// let _ = inner::Packet { some_field: true };
 /// ```
+#[cfg(doctest)]
 mod struct_privacy_works {}
