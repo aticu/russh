@@ -3,7 +3,7 @@ name = "russh-definitions"
 version = "0.1.0"
 license = "MIT/Apache-2.0"
 keywords = ["ssh", "network", "russh"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 num-bigint = "0.4"

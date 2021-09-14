@@ -3,7 +3,7 @@ name = "russh-algorithms"
 version = "0.1.0"
 license = "MIT/Apache-2.0"
 keywords = ["ssh", "network", "russh", "crypto"]
-edition = "2018"
+edition = "2021"
 
 [features]
 default = [
