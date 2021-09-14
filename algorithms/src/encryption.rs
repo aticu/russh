@@ -4,6 +4,14 @@ use russh_definitions::algorithms::{
     Algorithm, AlgorithmCategory, EncryptionAlgorithm, EncryptionContext,
 };
 
+#[cfg(feature = "chacha20poly1305_at_openssh_com")]
+#[doc(hidden)]
+mod chacha20poly1305;
+
+#[cfg(feature = "chacha20poly1305_at_openssh_com")]
+#[doc(inline)]
+pub use self::chacha20poly1305::*;
+
 #[cfg(any(feature = "aes128-ctr", feature = "aes192-ctr", feature = "aes256-ctr"))]
 #[doc(hidden)]
 mod aes_ctr;
@@ -16,7 +24,7 @@ pub use self::aes_ctr::*;
 ///
 /// This is not a functional encryption algorithm, but is used
 /// instead of an encryption algorithm during key exchange.
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default, Clone)]
 // This isn't a unit struct, to allow for future expansions of this.
 #[non_exhaustive]
 pub struct None {}
@@ -81,6 +89,8 @@ where
     F: FnMut(Entry),
 {
     // This is the same order used by OpenSSH
+    #[cfg(feature = "chacha20poly1305_at_openssh_com")]
+    add(ChaCha20Poly1305::boxed().into());
     #[cfg(feature = "aes128-ctr")]
     add(Aes128Ctr::boxed().into());
     #[cfg(feature = "aes192-ctr")]

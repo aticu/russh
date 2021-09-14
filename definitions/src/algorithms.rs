@@ -326,6 +326,29 @@ impl EncryptionContext<'_> {
         &self.data[..self.processed_until]
     }
 
+    /// Returns all packet data in the context.
+    ///
+    /// **The processed part must be restored as it was when the encryption algorithm was called,
+    /// before the encryption or decryption function returns.**
+    ///
+    /// This method should be used with caution, as the already decrypted data should not be
+    /// changed.
+    /// Some algorithms, such as "chacha20poly1305@openssh.com", however require access to the
+    /// whole undecrypted packet for the MAC calculation.
+    /// Reencrypting the decrypted part of the packet and restoring it later is a feasible solution
+    /// in this case.
+    ///
+    /// # Encryption
+    /// If `EncryptionContext` is passed to `encrypt_packet`, this will always contain the entire
+    /// packet, as the encryption always takes place in one pass.
+    ///
+    /// # Decryption
+    /// If `EncryptionContext` is passed to `decrypt_packet`, this will be the part of the packet
+    /// that was already decrypted.
+    pub fn all_data_mut(&mut self) -> &mut [u8] {
+        self.data
+    }
+
     /// Returns the part of the packet that has yet to be processed.
     ///
     /// # Encryption

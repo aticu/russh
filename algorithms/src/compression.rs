@@ -8,7 +8,7 @@ use std::{borrow::Cow, error::Error};
 /// The compression algorithm that does not compress.
 ///
 /// This is used for sending uncompressed data.
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default, Clone)]
 // This isn't a unit struct, to allow for future expansions of this.
 #[non_exhaustive]
 pub struct None {}

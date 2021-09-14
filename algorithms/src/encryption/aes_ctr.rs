@@ -5,6 +5,7 @@ use russh_definitions::algorithms::{
     Algorithm, AlgorithmCategory, EncryptionAlgorithm, EncryptionContext,
 };
 use std::mem;
+use zeroize::Zeroize;
 
 macro_rules! impl_aes_ctr {
     ($name_str:expr, $name:ident, $alg:ty, $key_size:expr) => {
@@ -88,23 +89,22 @@ macro_rules! impl_aes_ctr {
             }
 
             fn unload_key(&mut self) {
+                let alg = self
+                    .algorithm
+                    .as_mut()
+                    .expect("key was previously loaded for aes ctr algorithm");
+
                 // Reinterpret the algorithm as a byte array.
                 // We need to do this in-place, otherwise we make additional copies of key.
                 //
                 // Safety
                 // This is safe, because the cipher instance will be dropped before it can be read
                 // again.
-                let reinterpreted: &mut Option<[u8; mem::size_of::<$alg>()]> =
-                    unsafe { mem::transmute(&mut self.algorithm) };
-
-                let array = reinterpreted
-                    .as_mut()
-                    .expect("key was previously loaded for aes ctr algorithm");
+                let reinterpreted: &mut [u8; mem::size_of::<$alg>()] =
+                    unsafe { mem::transmute(alg) };
 
                 // Zero the array
-                for elem in &mut array[..] {
-                    *elem = 0;
-                }
+                reinterpreted.zeroize();
 
                 // Then drop the algorithm to make sure it isn't used in it's invalid state.
                 // This also signals that the algorithm is now unloaded.

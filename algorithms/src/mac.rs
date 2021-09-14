@@ -21,7 +21,7 @@ pub use self::hmac_sha::*;
 ///
 /// This is not a functional MAC algorithm, but is used
 /// instead of a MAC algorithm during key exchange.
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default, Clone)]
 #[non_exhaustive]
 pub struct None {}
 
