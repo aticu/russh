@@ -46,12 +46,9 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
     let kex_algorithm = connection_algorithms.kex.current();
     let host_key_algorithm = connection_algorithms.host_key.current();
 
-    if let Some(start_packet) = kex_algorithm.start(
-        &connection_role,
-        key_exchange_data,
-        &mut **host_key_algorithm,
-        rng,
-    ) {
+    if let Some(start_packet) =
+        kex_algorithm.start(&connection_role, key_exchange_data, host_key_algorithm, rng)
+    {
         output_handler
             .send_packet(
                 &start_packet,
@@ -73,7 +70,7 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
             return Err(KeyExchangeProcedureError::NonKeyExchangePacketReceived);
         }
 
-        match kex_algorithm.respond(&answer, key_exchange_data, &mut **host_key_algorithm, rng) {
+        match kex_algorithm.respond(&answer, key_exchange_data, host_key_algorithm, rng) {
             Ok(KeyExchangeResponse::Finished {
                 host_key,
                 shared_secret,
@@ -231,7 +228,7 @@ pub(in crate::protocol) fn negotiate_algorithm<'names>(
         connection_algorithms
             .host_key
             .algorithm(alg)
-            .map(|a| a.is_encryption_capable())
+            .map(|a| a.is_encryption_capable)
             .unwrap_or(false)
     });
 
@@ -241,7 +238,7 @@ pub(in crate::protocol) fn negotiate_algorithm<'names>(
         connection_algorithms
             .host_key
             .algorithm(alg)
-            .map(|a| a.is_signature_capable())
+            .map(|a| a.is_signature_capable)
             .unwrap_or(false)
     });
 
@@ -255,13 +252,13 @@ pub(in crate::protocol) fn negotiate_algorithm<'names>(
             None => continue,
         };
 
-        if algorithm.requires_encryption_capable_host_key_algorithm()
+        if algorithm.requires_encryption_capable_host_key_algorithm
             && !shared_encryption_capable_host_key_algorithm
         {
             continue;
         }
 
-        if algorithm.requires_signature_capable_host_key_algorithm()
+        if algorithm.requires_signature_capable_host_key_algorithm
             && !shared_signature_capable_host_key_algorithm
         {
             continue;

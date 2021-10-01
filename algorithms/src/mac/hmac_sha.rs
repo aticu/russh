@@ -8,7 +8,7 @@ use hmac::{
     digest::FixedOutput,
     Hmac, Mac,
 };
-use russh_definitions::algorithms::{Algorithm, AlgorithmCategory, MacAlgorithm};
+use russh_definitions::algorithms::{InvalidMacError, MacAlgorithm};
 use secstr::SecStr;
 
 macro_rules! impl_hmac_sha {
@@ -34,13 +34,6 @@ macro_rules! impl_hmac_sha {
                 $name { key: None }
             }
 
-            #[doc = "Creates a new boxed `"]
-            #[doc = $name_str]
-            #[doc = "` MAC algorithm."]
-            pub fn boxed() -> Box<dyn MacAlgorithm> {
-                Box::new($name::new())
-            }
-
             /// Performs the actual MAC calculation.
             fn calculate(
                 &self,
@@ -59,31 +52,13 @@ macro_rules! impl_hmac_sha {
             }
         }
 
-        impl Algorithm for $name {
-            fn name(&self) -> &'static str {
-                $name_str
-            }
-
-            fn category(&self) -> AlgorithmCategory {
-                AlgorithmCategory::Mac
-            }
-        }
-
         impl MacAlgorithm for $name {
-            fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
-                self
-            }
-
-            fn mac_size(&self) -> usize {
-                <$alg as FixedOutput>::OutputSize::USIZE
-            }
-
-            fn key_size(&self) -> usize {
-                $key_size
-            }
+            const NAME: &'static str = $name_str;
+            const MAC_SIZE: usize = <$alg as FixedOutput>::OutputSize::USIZE;
+            const KEY_SIZE: usize = $key_size;
 
             fn load_key(&mut self, key: &[u8]) {
-                debug_assert_eq!(key.len(), self.key_size());
+                debug_assert_eq!(key.len(), Self::KEY_SIZE);
 
                 self.key.replace(SecStr::from(key));
             }
@@ -93,16 +68,26 @@ macro_rules! impl_hmac_sha {
             }
 
             fn compute(&mut self, data: &[u8], sequence_number: u32, result: &mut [u8]) {
-                debug_assert_eq!(result.len(), self.mac_size());
+                debug_assert_eq!(result.len(), Self::MAC_SIZE);
 
                 result.copy_from_slice(&self.calculate(data, sequence_number).code());
             }
 
-            fn verify(&mut self, data: &[u8], sequence_number: u32, mac: &[u8]) -> bool {
-                debug_assert_eq!(mac.len(), self.mac_size());
+            fn verify(
+                &mut self,
+                data: &[u8],
+                sequence_number: u32,
+                mac: &[u8],
+            ) -> Result<(), InvalidMacError> {
+                debug_assert_eq!(mac.len(), Self::MAC_SIZE);
 
-                self.calculate(data, sequence_number)
+                if self.calculate(data, sequence_number)
                     == MacResult::new(*GenericArray::from_slice(mac))
+                {
+                    Ok(())
+                } else {
+                    Err(InvalidMacError::MacMismatch)
+                }
             }
         }
 

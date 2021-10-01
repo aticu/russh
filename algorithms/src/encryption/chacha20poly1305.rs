@@ -13,7 +13,9 @@ use zeroize::Zeroize as _;
 use std::{fmt, mem};
 
 use russh_definitions::{
-    algorithms::{Algorithm, AlgorithmCategory, EncryptionAlgorithm, EncryptionContext},
+    algorithms::{
+        EncryptionAlgorithm, EncryptionContext, InvalidMacError, MacComputingEncryptionAlgorithm,
+    },
     parse, write,
 };
 
@@ -36,11 +38,6 @@ impl ChaCha20Poly1305 {
     /// Creates a new `chacha20-poly1305@openssh.com` encryption algorithm.
     pub fn new() -> Self {
         Self { keys: None }
-    }
-
-    /// Creates a new boxed `chacha20-poly1305@openssh.com` encryption algorithm.
-    pub fn boxed() -> Box<dyn EncryptionAlgorithm> {
-        Box::new(Self::new())
     }
 
     /// Returns the key used to encrypt the packet lengths.
@@ -90,35 +87,16 @@ impl fmt::Debug for ChaCha20Poly1305 {
     }
 }
 
-impl Algorithm for ChaCha20Poly1305 {
-    fn name(&self) -> &'static str {
-        "chacha20-poly1305@openssh.com"
-    }
-
-    fn category(&self) -> AlgorithmCategory {
-        AlgorithmCategory::Encryption
-    }
-}
-
 impl EncryptionAlgorithm for ChaCha20Poly1305 {
-    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
-        self
-    }
+    type AlgorithmType = MacComputingEncryptionAlgorithm<MAC_SIZE>;
 
-    fn cipher_block_size(&self) -> usize {
-        1
-    }
-
-    fn key_size(&self) -> usize {
-        64
-    }
-
-    fn iv_size(&self) -> usize {
-        0
-    }
+    const NAME: &'static str = "chacha20-poly1305@openssh.com";
+    const CIPHER_BLOCK_SIZE: usize = 1;
+    const KEY_SIZE: usize = 64;
+    const IV_SIZE: usize = 0;
 
     fn load_key(&mut self, iv: &[u8], key: &[u8]) {
-        debug_assert_eq!(iv.len(), self.iv_size());
+        debug_assert_eq!(iv.len(), Self::IV_SIZE);
 
         if self.keys.is_some() {
             self.unload_key();
@@ -174,18 +152,10 @@ impl EncryptionAlgorithm for ChaCha20Poly1305 {
             .copy_from_slice(&calculated_mac.into_bytes());
     }
 
-    fn decrypt_packet(&mut self, _context: EncryptionContext) -> usize {
-        unimplemented!()
-    }
-
-    fn mac_size(&self) -> Option<usize> {
-        Some(MAC_SIZE)
-    }
-
-    fn authenticated_decrypt_packet(&mut self, mut context: EncryptionContext) -> Option<usize> {
+    fn decrypt_packet(&mut self, mut context: EncryptionContext) -> Result<usize, InvalidMacError> {
         if context.processed_part().len() < LEN_SIZE && context.unprocessed_part().len() < LEN_SIZE
         {
-            return Some(0);
+            return Ok(0);
         }
 
         let mut bytes_decrypted = 0;
@@ -202,7 +172,7 @@ impl EncryptionAlgorithm for ChaCha20Poly1305 {
 
         // TODO: should usize or u32 be used for the comparison here? Check elsewhere for `as` too.
         if len + MAC_SIZE as u32 > context.unprocessed_part().len() as u32 {
-            return Some(bytes_decrypted);
+            return Ok(bytes_decrypted);
         }
 
         let mut cipher = ChaCha20Legacy::new_from_slices(
@@ -231,7 +201,7 @@ impl EncryptionAlgorithm for ChaCha20Poly1305 {
         if calculated_mac != GenericArray::from_slice(mac).into() {
             // Restore the decrypted packet length in the buffer before returning
             context.all_data_mut()[..LEN_SIZE].copy_from_slice(&decrypted_len_buf);
-            return None;
+            return Err(InvalidMacError::MacMismatch);
         }
 
         // Perform the actual decryption with a block counter of one (offset of 64 in stream).
@@ -249,7 +219,7 @@ impl EncryptionAlgorithm for ChaCha20Poly1305 {
         unsafe { zero_cipher(&mut cipher) };
         mem::drop(cipher);
 
-        Some(bytes_decrypted)
+        Ok(bytes_decrypted)
     }
 }
 

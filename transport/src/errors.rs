@@ -1,7 +1,7 @@
 //! Defines all the errors that can occur in the transport layer.
 
 pub use russh_definitions::{
-    algorithms::{AlgorithmCategory, AlgorithmRole, KeyExchangeAlgorithmError},
+    algorithms::{AlgorithmCategory, AlgorithmRole, InvalidMacError, KeyExchangeAlgorithmError},
     ParseError,
 };
 
@@ -19,7 +19,7 @@ pub enum CommunicationError {
     EndOfInput,
     /// There was an IO error while sending or receiving a packet.
     #[error("an io error occured: {0}")]
-    Io(io::Error),
+    Io(#[from] io::Error),
     /// A received packet had an invalid format.
     #[error("a packet had an invalid format")]
     InvalidFormat,
@@ -27,8 +27,8 @@ pub enum CommunicationError {
     #[error("a packet had an invalid padding")]
     InvalidPadding,
     /// The MAC on a received packet was invalid.
-    #[error("a received MAC was invalid")]
-    InvalidMac,
+    #[error("a received MAC was invalid: {0}")]
+    InvalidMac(#[from] InvalidMacError),
     /// A received packet could not be decompressed successfully.
     #[error("decompression unsuccessful: {0}")]
     InvalidCompression(Box<dyn Error>),
@@ -176,6 +176,6 @@ pub enum ParseIncomingPacketError {
     #[error("the packet could not be parsed")]
     ParseError(#[from] ParseError),
     /// The packet had an invalid MAC.
-    #[error("the packet had an invalid MAC")]
-    InvalidMac,
+    #[error("the packet had an invalid MAC: {0}")]
+    InvalidMac(#[from] InvalidMacError),
 }

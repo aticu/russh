@@ -39,7 +39,7 @@ fn all_types_named_and_const_round_trip() {
             uint64     {0x1337}
             string     {b"abcdef"}
             mpint      {BigInt::parse_bytes(b"-deadbeef", 16).unwrap()}
-            name-list  {vec!["zlib", "none"]}
+            name-list  {["zlib", "none"]}
         }
     }
 

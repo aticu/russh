@@ -2,10 +2,7 @@
 //!
 //! This is the counter part to the `parser` module.
 
-use russh_definitions::{
-    algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm},
-    write, CryptoRngCore,
-};
+use russh_definitions::{algorithms::internal::CryptoRngCore, write};
 use std::{
     cmp::{max, min},
     convert::TryInto,
@@ -13,6 +10,7 @@ use std::{
 };
 
 use crate::{
+    algorithms::{EncryptionAlgorithmEntry, EncryptionContext, MacAlgorithmEntry},
     constants::{
         MAX_PADDING_SIZE, MIN_PACKET_LEN_ALIGN, MIN_PADDING_SIZE, PACKET_LEN_SIZE, PADDING_LEN_SIZE,
     },
@@ -117,10 +115,10 @@ impl WriterOutputStream {
         &mut self,
         packet_start: usize,
         sequence_number: u32,
-        mac_algorithm: &mut dyn MacAlgorithm,
+        mac_algorithm: &mut MacAlgorithmEntry,
     ) {
         let mac_start = self.data.len();
-        let mac_len = mac_algorithm.mac_size();
+        let mac_len = mac_algorithm.mac_size;
 
         self.data.resize(mac_start + mac_len as usize, 0);
         let (packet_data, mac_data) =
@@ -136,18 +134,15 @@ impl WriterOutputStream {
     pub(crate) fn write_packet(
         &mut self,
         payload: &[u8],
-        encryption_algorithm: &mut dyn EncryptionAlgorithm,
-        mac_algorithm: Option<&mut dyn MacAlgorithm>,
+        encryption_algorithm: &mut EncryptionAlgorithmEntry,
+        mac_algorithm: Option<&mut MacAlgorithmEntry>,
         sequence_number: u32,
         rng: &mut dyn CryptoRngCore,
         distr: &mut dyn FnMut(&mut dyn CryptoRngCore) -> u8,
     ) {
-        let align = max(
-            MIN_PACKET_LEN_ALIGN,
-            encryption_algorithm.cipher_block_size(),
-        );
+        let align = max(MIN_PACKET_LEN_ALIGN, encryption_algorithm.cipher_block_size);
         // TODO: check for ETM here, once its implemented
-        let include_packet_length = encryption_algorithm.mac_size().is_none();
+        let include_packet_length = !encryption_algorithm.computes_mac();
         let padding_len: u8 =
             self.generate_padding_len(payload.len(), align, rng, distr, include_packet_length);
         let packet_len: u32 = (PADDING_LEN_SIZE + payload.len() + padding_len as usize)
@@ -155,9 +150,9 @@ impl WriterOutputStream {
             .expect("packet size must fit into u32");
         let mac_len = mac_algorithm
             .as_ref()
-            .map(|alg| alg.mac_size())
+            .map(|alg| alg.mac_size)
             .unwrap_or_else(|| {
-                encryption_algorithm.mac_size().expect(
+                encryption_algorithm.mac_size.expect(
                     "encryption algorithm is authenticated when no MAC algorithm is present",
                 )
             });
@@ -175,7 +170,7 @@ impl WriterOutputStream {
             self.write_mac(packet_start, sequence_number, mac_algorithm);
         }
 
-        let optional_mac_len = if let Some(mac_size) = encryption_algorithm.mac_size() {
+        let optional_mac_len = if let Some(mac_size) = encryption_algorithm.mac_size {
             self.data.resize(mac_start + mac_size, 0);
             mac_size
         } else {
@@ -251,8 +246,8 @@ mod tests {
     fn append_packet_none() {
         // Seed it using a fixed value to ensure test stability (always the same values)
         let mut rng = ChaCha20Rng::from_seed(Default::default());
-        let mut encryption_algorithm = encryption::None::new();
-        let mut mac_algorithm = mac::None::new();
+        let mut encryption_algorithm = encryption::None::new().into();
+        let mut mac_algorithm = mac::None::new().into();
         let mut writer = WriterOutputStream::new();
         let mut distr = padding_length::default_distribution();
 

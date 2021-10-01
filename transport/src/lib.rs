@@ -9,12 +9,9 @@
 #![warn(unreachable_pub)]
 
 use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
-use russh_definitions::{
-    algorithms::{
-        CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm,
-        MacAlgorithm,
-    },
-    CryptoRngCore,
+use russh_definitions::algorithms::{
+    internal::CryptoRngCore, CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm,
+    KeyExchangeAlgorithm, MacAlgorithm,
 };
 use std::{borrow::Cow, fmt};
 
@@ -171,28 +168,6 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         }
     }
 
-    /// Adds a new algorithm to the builder.
-    fn add_algorithm<A, P, V>(
-        mut self,
-        validation_fn: V,
-        algorithm: A,
-        push_fn: P,
-    ) -> Result<Self, (Self, InvalidNameError)>
-    where
-        A: russh_definitions::algorithms::Algorithm,
-        V: FnOnce(&str) -> Result<(), InvalidNameError>,
-        P: FnOnce(&mut Self, Box<A>),
-    {
-        match validation_fn(algorithm.name()) {
-            Ok(()) => {
-                push_fn(&mut self, Box::new(algorithm));
-
-                Ok(self)
-            }
-            Err(err) => Err((self, err)),
-        }
-    }
-
     /// Clears all algorithms from the builder.
     ///
     /// Note that this also clears the "none" algorithms used during the connection setup.
@@ -207,227 +182,210 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
 
     /// Adds a new key exchange algorithm.
     pub fn add_key_exchange_algorithm<A: KeyExchangeAlgorithm + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .kex
-                    .add::<Box<dyn KeyExchangeAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self.connection_algorithms.kex.add(algorithm, AddIn::Front) {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new host key algorithm.
     pub fn add_host_key_algorithm<A: HostKeyAlgorithm + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .host_key
-                    .add::<Box<dyn HostKeyAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .host_key
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new encryption algorithm.
     pub fn add_encryption_algorithm<A: EncryptionAlgorithm + Clone + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .c2s
-                    .encryption
-                    .add::<Box<dyn EncryptionAlgorithm>>(a.clone(), AddIn::Front)
-                    .unwrap();
-                builder
-                    .connection_algorithms
-                    .s2c
-                    .encryption
-                    .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .c2s
+            .encryption
+            .add(algorithm.clone(), AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        if let Err(err) = self
+            .connection_algorithms
+            .s2c
+            .encryption
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new encryption algorithm for client to server communication.
     pub fn add_encryption_algorithm_client_to_server<A: EncryptionAlgorithm + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .c2s
-                    .encryption
-                    .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .c2s
+            .encryption
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new encryption algorithm for server to client communication.
     pub fn add_encryption_algorithm_server_to_client<A: EncryptionAlgorithm + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .s2c
-                    .encryption
-                    .add::<Box<dyn EncryptionAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .s2c
+            .encryption
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new MAC algorithm.
     pub fn add_mac_algorithm<A: MacAlgorithm + Clone + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .c2s
-                    .mac
-                    .add::<Box<dyn MacAlgorithm>>(a.clone(), AddIn::Front)
-                    .unwrap();
-                builder
-                    .connection_algorithms
-                    .s2c
-                    .mac
-                    .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .c2s
+            .mac
+            .add(algorithm.clone(), AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        if let Err(err) = self
+            .connection_algorithms
+            .s2c
+            .mac
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new MAC algorithm for client to server communication.
     pub fn add_mac_algorithm_client_to_server<A: MacAlgorithm + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .c2s
-                    .mac
-                    .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .c2s
+            .mac
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new MAC algorithm for server to client communication.
     pub fn add_mac_algorithm_server_to_client<A: MacAlgorithm + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .s2c
-                    .mac
-                    .add::<Box<dyn MacAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .s2c
+            .mac
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new compression algorithm.
     pub fn add_compression_algorithm<A: CompressionAlgorithm + Clone + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .c2s
-                    .compression
-                    .add::<Box<dyn CompressionAlgorithm>>(a.clone(), AddIn::Front)
-                    .unwrap();
-                builder
-                    .connection_algorithms
-                    .s2c
-                    .compression
-                    .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .c2s
+            .compression
+            .add(algorithm.clone(), AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        if let Err(err) = self
+            .connection_algorithms
+            .s2c
+            .compression
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new compression algorithm for client to server communication.
     pub fn add_compression_algorithm_client_to_server<A: CompressionAlgorithm + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .c2s
-                    .compression
-                    .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .c2s
+            .compression
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Adds a new compression algorithm for server to client communication.
     pub fn add_compression_algorithm_server_to_client<A: CompressionAlgorithm + 'static>(
-        self,
+        mut self,
         algorithm: A,
     ) -> Result<Self, (Self, InvalidNameError)> {
-        self.add_algorithm(
-            |a| algorithms::helpers::validate_algorithm_name(a),
-            algorithm,
-            |builder, a| {
-                builder
-                    .connection_algorithms
-                    .s2c
-                    .compression
-                    .add::<Box<dyn CompressionAlgorithm>>(a, AddIn::Front)
-                    .unwrap();
-            },
-        )
+        if let Err(err) = self
+            .connection_algorithms
+            .s2c
+            .compression
+            .add(algorithm, AddIn::Front)
+        {
+            return Err((self, err));
+        }
+
+        Ok(self)
     }
 
     /// Loads a host key for the given algorithm.

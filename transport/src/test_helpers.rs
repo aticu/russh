@@ -35,7 +35,7 @@ impl AsyncRead for FakeNetworkInput {
         _cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        if self.input_data.len() > 0 {
+        if !self.input_data.is_empty() {
             let amount_to_copy = min(min(self.input_data.len(), self.packet_size), buf.len());
 
             buf[..amount_to_copy].copy_from_slice(&self.input_data[..amount_to_copy]);

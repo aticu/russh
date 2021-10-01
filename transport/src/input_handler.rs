@@ -71,7 +71,7 @@ impl<Input: InputStream> InputHandler<Input> {
                 Err(ParseIncomingPacketError::ParseError(ParseError::Invalid)) => {
                     break Err(CommunicationError::InvalidFormat)
                 }
-                Err(ParseIncomingPacketError::InvalidMac) => unreachable!(),
+                Err(ParseIncomingPacketError::InvalidMac(_)) => unreachable!(),
             }
         }
     }
@@ -89,9 +89,9 @@ impl<Input: InputStream> InputHandler<Input> {
         let mac_len = algorithms
             .mac
             .as_ref()
-            .map(|alg| alg.mac_size())
+            .map(|alg| alg.mac_size)
             .unwrap_or_else(|| {
-                algorithms.encryption.mac_size().expect(
+                algorithms.encryption.mac_size.expect(
                     "encryption algorithm is authenticated when no MAC algorithm is present",
                 )
             });
@@ -100,7 +100,7 @@ impl<Input: InputStream> InputHandler<Input> {
             .packet_parser
             .is_packet_ready(algorithms.encryption, mac_len, self.sequence_number)
             .map_err(|err| match err {
-                ParseIncomingPacketError::InvalidMac => CommunicationError::InvalidMac,
+                ParseIncomingPacketError::InvalidMac(err) => CommunicationError::InvalidMac(err),
                 _ => unreachable!(),
             })?
         {
@@ -117,7 +117,9 @@ impl<Input: InputStream> InputHandler<Input> {
             Err(ParseIncomingPacketError::ParseError(ParseError::Invalid)) => {
                 Err(CommunicationError::InvalidFormat)
             }
-            Err(ParseIncomingPacketError::InvalidMac) => Err(CommunicationError::InvalidMac),
+            Err(ParseIncomingPacketError::InvalidMac(err)) => {
+                Err(CommunicationError::InvalidMac(err))
+            }
             Err(ParseIncomingPacketError::ParseError(ParseError::Incomplete)) => unreachable!(),
         }?;
 
@@ -125,10 +127,13 @@ impl<Input: InputStream> InputHandler<Input> {
 
         // TODO: implement ETM MAC algorithms
         // if implemented, add this to the check here
-        let packet_len_counts_to_padding = algorithms.encryption.mac_size().is_some();
-        let len_modifier = if packet_len_counts_to_padding { 4 } else { 0 };
+        let len_modifier = if algorithms.encryption.computes_mac() {
+            4
+        } else {
+            0
+        };
         if (packet.whole_packet.len() - len_modifier)
-            % max(algorithms.encryption.cipher_block_size(), 8)
+            % max(algorithms.encryption.cipher_block_size, 8)
             != 0
         {
             return Err(CommunicationError::InvalidPadding);

@@ -1,7 +1,7 @@
 //! Provides the encryption algorithms used by the SSH transport layer.
 
 use russh_definitions::algorithms::{
-    Algorithm, AlgorithmCategory, EncryptionAlgorithm, EncryptionContext,
+    internal, EncryptionAlgorithm, EncryptionContext, PlainEncryptionAlgorithm,
 };
 
 #[cfg(feature = "chacha20poly1305_at_openssh_com")]
@@ -34,43 +34,19 @@ impl None {
     pub fn new() -> None {
         None {}
     }
-
-    /// Creates a new boxed `none` encryption algorithm.
-    pub fn boxed() -> Box<dyn EncryptionAlgorithm> {
-        Box::new(None::new())
-    }
-}
-
-impl Algorithm for None {
-    fn name(&self) -> &'static str {
-        "none"
-    }
-
-    fn category(&self) -> AlgorithmCategory {
-        AlgorithmCategory::Encryption
-    }
 }
 
 impl EncryptionAlgorithm for None {
-    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
-        self
-    }
+    type AlgorithmType = PlainEncryptionAlgorithm;
 
-    fn cipher_block_size(&self) -> usize {
-        1
-    }
-
-    fn key_size(&self) -> usize {
-        0
-    }
-
-    fn iv_size(&self) -> usize {
-        0
-    }
+    const NAME: &'static str = "none";
+    const CIPHER_BLOCK_SIZE: usize = 1;
+    const KEY_SIZE: usize = 0;
+    const IV_SIZE: usize = 0;
 
     fn load_key(&mut self, _iv: &[u8], _key: &[u8]) {
-        debug_assert_eq!(_key.len(), self.key_size());
-        debug_assert_eq!(_iv.len(), self.iv_size());
+        debug_assert_eq!(_key.len(), Self::KEY_SIZE);
+        debug_assert_eq!(_iv.len(), Self::IV_SIZE);
     }
 
     fn unload_key(&mut self) {}
@@ -83,19 +59,18 @@ impl EncryptionAlgorithm for None {
 }
 
 /// Calls the `add` function with all encryption algorithms defined and enabled in this crate.
-pub fn add_algorithms<Entry, F>(mut add: F)
+pub fn add_algorithms<F>(mut add: F)
 where
-    Box<dyn EncryptionAlgorithm>: Into<Entry>,
-    F: FnMut(Entry),
+    F: FnMut(internal::EncryptionAlgorithmEntry),
 {
     // This is the same order used by OpenSSH
     #[cfg(feature = "chacha20poly1305_at_openssh_com")]
-    add(ChaCha20Poly1305::boxed().into());
+    add(ChaCha20Poly1305::new().into());
     #[cfg(feature = "aes128-ctr")]
-    add(Aes128Ctr::boxed().into());
+    add(Aes128Ctr::new().into());
     #[cfg(feature = "aes192-ctr")]
-    add(Aes192Ctr::boxed().into());
+    add(Aes192Ctr::new().into());
     #[cfg(feature = "aes256-ctr")]
-    add(Aes256Ctr::boxed().into());
-    add(None::boxed().into());
+    add(Aes256Ctr::new().into());
+    add(None::new().into());
 }

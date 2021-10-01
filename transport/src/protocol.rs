@@ -193,7 +193,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         )?;
 
         let (hash_fn, kex_algorithm_result) = {
-            let hash_fn = self.connection_algorithms.kex.current().hash_fn();
+            let hash_fn = self.connection_algorithms.kex.current().hash_function;
 
             let local_identification_string = format!("{}", &self.version_info).into_bytes();
             let (client_identification, server_identification) = match role {
@@ -385,16 +385,15 @@ fn negotiate_algorithms<'names>(
             AlgorithmRole(AlgorithmCategory::Encryption, Some(direction)),
         )?;
 
-        let mac_needed = match direction {
+        let mac_included = match direction {
             AlgorithmDirection::ClientToServer => &connection_algorithms.c2s,
             AlgorithmDirection::ServerToClient => &connection_algorithms.s2c,
         }
         .encryption
         .algorithm(encryption)
         .expect("chosen algorithm is available")
-        .mac_size()
-        .is_none();
-        let mac = if mac_needed {
+        .computes_mac();
+        let mac = if !mac_included {
             Some(negotiate_basic_algorithm(
                 client_mac,
                 server_mac,
@@ -473,10 +472,10 @@ fn negotiate_host_key_algorithm<'names>(
                 None => return false,
             };
 
-            (kex_alg.requires_encryption_capable_host_key_algorithm()
-                && host_key_alg.is_encryption_capable())
-                || (kex_alg.requires_signature_capable_host_key_algorithm()
-                    && host_key_alg.is_signature_capable())
+            (kex_alg.requires_encryption_capable_host_key_algorithm
+                && host_key_alg.is_encryption_capable)
+                || (kex_alg.requires_signature_capable_host_key_algorithm
+                    && host_key_alg.is_signature_capable)
         })
         .find(|name| server_list.host_key.contains(name))
         .map(|name| &**name)

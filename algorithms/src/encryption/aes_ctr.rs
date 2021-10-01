@@ -2,7 +2,7 @@
 
 use aes_ctr::stream_cipher::{generic_array::GenericArray, NewStreamCipher, StreamCipher};
 use russh_definitions::algorithms::{
-    Algorithm, AlgorithmCategory, EncryptionAlgorithm, EncryptionContext,
+    EncryptionAlgorithm, EncryptionContext, PlainEncryptionAlgorithm,
 };
 use std::mem;
 use zeroize::Zeroize;
@@ -18,13 +18,9 @@ macro_rules! impl_aes_ctr {
         // cleared from memory, once they are unloaded.
         static_assertions::assert_not_impl_all!($alg: Drop);
 
-        #[doc = "Implements the `"]
-        #[doc = $name_str]
-        #[doc = "` encryption algorithm."]
+        #[doc = concat!("Implements the `", $name_str, "` encryption algorithm.")]
         #[doc = ""]
-        #[doc = "The existence of this struct is controlled by the `"]
-        #[doc = $name_str]
-        #[doc = "` feature."]
+        #[doc = concat!("The existence of this struct is controlled by the `", $name_str, "` feature.")]
         #[derive(Debug, Default)]
         pub struct $name {
             /// Contains the algorithm implementation and the keys.
@@ -34,51 +30,23 @@ macro_rules! impl_aes_ctr {
         }
 
         impl $name {
-            #[doc = "Creates a new `"]
-            #[doc = $name_str]
-            #[doc = "` encryption algorithm."]
+            #[doc = concat!("Creates a new `", $name_str, "` encryption algorithm.")]
             pub fn new() -> Self {
                 $name { algorithm: None }
-            }
-
-            #[doc = "Creates a new boxed `"]
-            #[doc = $name_str]
-            #[doc = "` encryption algorithm."]
-            pub fn boxed() -> Box<dyn EncryptionAlgorithm> {
-                Box::new(Self::new())
-            }
-        }
-
-        impl Algorithm for $name {
-            fn name(&self) -> &'static str {
-                $name_str
-            }
-
-            fn category(&self) -> AlgorithmCategory {
-                AlgorithmCategory::Encryption
             }
         }
 
         impl EncryptionAlgorithm for $name {
-            fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
-                self
-            }
+            type AlgorithmType = PlainEncryptionAlgorithm;
 
-            fn cipher_block_size(&self) -> usize {
-                16
-            }
-
-            fn key_size(&self) -> usize {
-                $key_size
-            }
-
-            fn iv_size(&self) -> usize {
-                16
-            }
+            const NAME: &'static str = $name_str;
+            const CIPHER_BLOCK_SIZE: usize = 16;
+            const KEY_SIZE: usize = $key_size;
+            const IV_SIZE: usize = 16;
 
             fn load_key(&mut self, iv: &[u8], key: &[u8]) {
-                debug_assert_eq!(key.len(), self.key_size());
-                debug_assert_eq!(iv.len(), self.iv_size());
+                debug_assert_eq!(key.len(), Self::KEY_SIZE);
+                debug_assert_eq!(iv.len(), Self::IV_SIZE);
 
                 let key = GenericArray::from_slice(key);
                 let nonce = GenericArray::from_slice(iv);

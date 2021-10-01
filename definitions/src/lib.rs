@@ -55,9 +55,3 @@ impl std::ops::Not for ConnectionRole {
         self.other()
     }
 }
-
-/// An implementation detail to allow using trait objects that implement `RngCore` and `CryptoRng`.
-// TODO: eventually remove this, if https://github.com/rust-random/rand/issues/1143 lands
-pub trait CryptoRngCore: rand::RngCore + rand::CryptoRng {}
-
-impl<T: rand::RngCore + rand::CryptoRng> CryptoRngCore for T {}

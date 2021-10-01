@@ -15,6 +15,36 @@ pub(crate) trait Nameable {
     fn name(&self) -> &'static str;
 }
 
+impl Nameable for super::KeyExchangeAlgorithmEntry {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+}
+
+impl Nameable for super::HostKeyAlgorithmEntry {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+}
+
+impl Nameable for super::EncryptionAlgorithmEntry {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+}
+
+impl Nameable for super::MacAlgorithmEntry {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+}
+
+impl Nameable for super::CompressionAlgorithmEntry {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+}
+
 /// Specifies where to add an algorithm into the list.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum AddIn {

@@ -2,10 +2,7 @@
 //!
 //! This is the counter part to the `writer` module.
 
-use russh_definitions::{
-    algorithms::{EncryptionAlgorithm, EncryptionContext, MacAlgorithm},
-    parse, ParsedValue,
-};
+use russh_definitions::{parse, ParsedValue};
 use std::cmp::{max, min};
 
 use self::{
@@ -13,6 +10,7 @@ use self::{
     unencrypted_packet::{parse_unencrypted_packet, parse_unencrypted_packet_length},
 };
 use crate::{
+    algorithms::{EncryptionAlgorithmEntry, EncryptionContext, MacAlgorithmEntry},
     constants::PACKET_LEN_SIZE,
     errors::{ParseError, ParseIncomingPacketError},
     version::VersionInformation,
@@ -119,7 +117,7 @@ impl ParserInputStream {
     fn decrypt(
         &mut self,
         to: usize,
-        algorithm: &mut dyn EncryptionAlgorithm,
+        algorithm: &mut EncryptionAlgorithmEntry,
         packet_sequence_number: u32,
     ) -> Result<bool, ParseIncomingPacketError> {
         #[cfg(debug_assertions)]
@@ -134,14 +132,7 @@ impl ParserInputStream {
 
         let decrypted_at_start = self.decrypted_until;
 
-        if algorithm.mac_size().is_some() {
-            match algorithm.authenticated_decrypt_packet(context) {
-                Some(decrypted_bytes) => self.decrypted_until += decrypted_bytes,
-                None => return Err(ParseIncomingPacketError::InvalidMac),
-            }
-        } else {
-            self.decrypted_until += algorithm.decrypt_packet(context);
-        }
+        self.decrypted_until += algorithm.decrypt_packet(context)?;
 
         Ok(self.decrypted_until > decrypted_at_start)
     }
@@ -163,14 +154,14 @@ impl ParserInputStream {
     /// Checks if the packet is ready to be parsed.
     pub(crate) fn is_packet_ready(
         &mut self,
-        dec_algorithm: &mut dyn EncryptionAlgorithm,
+        dec_algorithm: &mut EncryptionAlgorithmEntry,
         mac_len: usize,
         packet_sequence_number: u32,
     ) -> Result<bool, ParseIncomingPacketError> {
         #[cfg(debug_assertions)]
         self.assert_valid_state();
 
-        let block_size = dec_algorithm.cipher_block_size();
+        let block_size = dec_algorithm.cipher_block_size;
         let minimum_packet_length = max(block_size, 8);
 
         while self.decrypted_until < self.parsed_until + PACKET_LEN_SIZE {
@@ -178,13 +169,9 @@ impl ParserInputStream {
                 self.parsed_until + minimum_packet_length,
                 dec_algorithm,
                 packet_sequence_number,
-            ) {
-                Ok(true) => continue,
-                Ok(false) => return Ok(false),
-                Err(ParseIncomingPacketError::InvalidMac) => {
-                    return Err(ParseIncomingPacketError::InvalidMac)
-                }
-                Err(_) => unreachable!(),
+            )? {
+                true => continue,
+                false => return Ok(false),
             }
         }
 
@@ -192,24 +179,16 @@ impl ParserInputStream {
             .parse_packet_length()
             .expect("packet length should be parsable");
 
-        let optional_mac_len = if let Some(mac_size) = dec_algorithm.mac_size() {
-            mac_size
-        } else {
-            0
-        };
+        let optional_mac_len = dec_algorithm.mac_size.unwrap_or(0);
 
         while self.decrypted_until < self.parsed_until + PACKET_LEN_SIZE + packet_length {
             match self.decrypt(
                 self.parsed_until + PACKET_LEN_SIZE + packet_length + optional_mac_len,
                 dec_algorithm,
                 packet_sequence_number,
-            ) {
-                Ok(true) => continue,
-                Ok(false) => return Ok(false),
-                Err(ParseIncomingPacketError::InvalidMac) => {
-                    return Err(ParseIncomingPacketError::InvalidMac)
-                }
-                Err(_) => unreachable!(),
+            )? {
+                true => continue,
+                false => return Ok(false),
             }
         }
 
@@ -220,8 +199,8 @@ impl ParserInputStream {
     // TODO: taint the parser once an error occurs
     pub(crate) fn parse_packet<'a>(
         &'a mut self,
-        dec_algorithm: &mut dyn EncryptionAlgorithm,
-        mac_algorithm: Option<&mut dyn MacAlgorithm>,
+        dec_algorithm: &mut EncryptionAlgorithmEntry,
+        mac_algorithm: Option<&mut MacAlgorithmEntry>,
         mac_len: usize,
         packet_sequence_number: u32,
     ) -> Result<ParsedPacket<'a>, ParseIncomingPacketError> {
@@ -253,9 +232,7 @@ impl ParserInputStream {
         self.parsed_until = self.decrypted_until;
 
         if let Some(mac_algorithm) = mac_algorithm {
-            if !mac_algorithm.verify(packet.whole_packet, packet_sequence_number, mac) {
-                return Err(ParseIncomingPacketError::InvalidMac);
-            }
+            mac_algorithm.verify(packet.whole_packet, packet_sequence_number, mac)?;
         }
 
         Ok(packet)
@@ -283,7 +260,7 @@ mod tests {
     #[test]
     fn decrypt_none() {
         let mut input_stream = ParserInputStream::new();
-        let mut algorithm = encryption::None::new();
+        let mut algorithm = encryption::None::new().into();
 
         assert_eq!(input_stream.initialized_until, 0);
         assert_eq!(input_stream.decrypted_until, 0);
@@ -328,7 +305,7 @@ mod tests {
     #[test]
     fn decrypt_packet_none() {
         let mut input_stream = ParserInputStream::new();
-        let mut dec_algorithm = encryption::None::new();
+        let mut dec_algorithm = encryption::None::new().into();
 
         let packet_data = &[
             0x00, 0x00, 0x00, 0x34, 0x12, b's', b'o', b'm', b'e', b' ', b'm', b'o', b'r', b'e',
@@ -418,7 +395,7 @@ mod tests {
         {
             let buf = input_stream.reserve(0);
 
-            (&mut buf[..]).copy_from_slice(&packet_data[60..]);
+            buf.copy_from_slice(&packet_data[60..]);
 
             let data_written = buf.len();
             input_stream.indicate_used(data_written);
@@ -466,7 +443,7 @@ mod tests {
     #[test]
     fn initialization_and_packet() {
         let mut input_stream = ParserInputStream::new();
-        let mut dec_algorithm = encryption::None::new();
+        let mut dec_algorithm = encryption::None::new().into();
 
         let packet_data = b"SSH is a protocol\r\nSSH-2.0-test@1.0\r\n\x00\x00\x00\x14\x08testpayload\x73\xae\xf8\x03\x7d\x38\x91\x10";
 
@@ -521,7 +498,7 @@ mod tests {
         {
             let buf = input_stream.reserve(0);
 
-            (&mut buf[..]).copy_from_slice(&packet_data[40..]);
+            buf.copy_from_slice(&packet_data[40..]);
 
             let data_written = buf.len();
             input_stream.indicate_used(data_written);

@@ -1,6 +1,6 @@
 //! Provides the compression algorithms used by the SSH transport layer.
 
-use russh_definitions::algorithms::{Algorithm, AlgorithmCategory, CompressionAlgorithm};
+use russh_definitions::algorithms::{internal, CompressionAlgorithm};
 use std::{borrow::Cow, error::Error};
 
 // TODO: implement at least one compression algorithm
@@ -18,27 +18,10 @@ impl None {
     pub fn new() -> None {
         None {}
     }
-
-    /// Creates a new boxed `none` compression algorithm.
-    pub fn boxed() -> Box<dyn CompressionAlgorithm> {
-        Box::new(None::new())
-    }
-}
-
-impl Algorithm for None {
-    fn name(&self) -> &'static str {
-        "none"
-    }
-
-    fn category(&self) -> AlgorithmCategory {
-        AlgorithmCategory::Compression
-    }
 }
 
 impl CompressionAlgorithm for None {
-    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
-        self
-    }
+    const NAME: &'static str = "none";
 
     fn compress<'data>(&mut self, data: Cow<'data, [u8]>) -> Cow<'data, [u8]> {
         data
@@ -53,11 +36,10 @@ impl CompressionAlgorithm for None {
 }
 
 /// Calls the `add` function with all compression algorithms defined and enabled in this crate.
-pub fn add_algorithms<Entry, F>(mut add: F)
+pub fn add_algorithms<F>(mut add: F)
 where
-    Box<dyn CompressionAlgorithm>: Into<Entry>,
-    F: FnMut(Entry),
+    F: FnMut(internal::CompressionAlgorithmEntry),
 {
     // This is the same order used by OpenSSH
-    add(None::boxed().into());
+    add(None::new().into());
 }

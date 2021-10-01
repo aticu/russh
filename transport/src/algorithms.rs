@@ -1,10 +1,13 @@
 //! Provides traits for the needed types of algorithms.
 
 use num_bigint::BigInt;
-use russh_definitions::algorithms::{
-    AlgorithmCategory, AlgorithmDirection, AlgorithmRole, CompressionAlgorithm,
-    EncryptionAlgorithm, HostKeyAlgorithm, KeyExchangeAlgorithm, KeyExchangeHashFunction,
-    MacAlgorithm,
+pub(crate) use russh_definitions::algorithms::{
+    internal::{
+        CompressionAlgorithmEntry, EncryptionAlgorithmEntry, HostKeyAlgorithmEntry,
+        KeyExchangeAlgorithmEntry, MacAlgorithmEntry,
+    },
+    AlgorithmCategory, AlgorithmDirection, AlgorithmRole, EncryptionContext,
+    KeyExchangeHashFunction,
 };
 use std::borrow::Cow;
 
@@ -17,45 +20,15 @@ mod list;
 pub(crate) mod builtin;
 pub(crate) mod helpers;
 
-impl list::Nameable for Box<dyn KeyExchangeAlgorithm> {
-    fn name(&self) -> &'static str {
-        self.as_basic_algorithm().name()
-    }
-}
-
-impl list::Nameable for Box<dyn HostKeyAlgorithm> {
-    fn name(&self) -> &'static str {
-        self.as_basic_algorithm().name()
-    }
-}
-
-impl list::Nameable for Box<dyn EncryptionAlgorithm> {
-    fn name(&self) -> &'static str {
-        self.as_basic_algorithm().name()
-    }
-}
-
-impl list::Nameable for Box<dyn MacAlgorithm> {
-    fn name(&self) -> &'static str {
-        self.as_basic_algorithm().name()
-    }
-}
-
-impl list::Nameable for Box<dyn CompressionAlgorithm> {
-    fn name(&self) -> &'static str {
-        self.as_basic_algorithm().name()
-    }
-}
-
 /// The lists of available packet algorithms in one communication direction.
 #[derive(Debug)]
 pub(crate) struct OneWayPacketAlgorithms {
     /// The available encryption algorithms.
-    pub(crate) encryption: AlgorithmList<Box<dyn EncryptionAlgorithm>>,
+    pub(crate) encryption: AlgorithmList<EncryptionAlgorithmEntry>,
     /// The available MAC algorithms.
-    pub(crate) mac: AlgorithmList<Box<dyn MacAlgorithm>>,
+    pub(crate) mac: AlgorithmList<MacAlgorithmEntry>,
     /// The available compression algorithms.
-    pub(crate) compression: AlgorithmList<Box<dyn CompressionAlgorithm>>,
+    pub(crate) compression: AlgorithmList<CompressionAlgorithmEntry>,
 }
 
 impl Default for OneWayPacketAlgorithms {
@@ -70,17 +43,17 @@ impl Default for OneWayPacketAlgorithms {
 
 impl OneWayPacketAlgorithms {
     pub(crate) fn current(&mut self) -> PacketAlgorithms {
-        let encryption_algorithm = &mut **self.encryption.current();
-        let mac_needed = encryption_algorithm.mac_size().is_none();
+        let encryption_algorithm = self.encryption.current();
+        let mac_included = encryption_algorithm.computes_mac();
 
         PacketAlgorithms {
             encryption: encryption_algorithm,
-            mac: if mac_needed {
-                Some(&mut **self.mac.current())
+            mac: if !mac_included {
+                Some(self.mac.current())
             } else {
                 None
             },
-            compression: &mut **self.compression.current(),
+            compression: self.compression.current(),
         }
     }
 }
@@ -89,9 +62,9 @@ impl OneWayPacketAlgorithms {
 #[derive(Debug)]
 pub(crate) struct ConnectionAlgorithms {
     /// The available key exchange algorithms.
-    pub(crate) kex: AlgorithmList<Box<dyn KeyExchangeAlgorithm>>,
+    pub(crate) kex: AlgorithmList<KeyExchangeAlgorithmEntry>,
     /// The available host key algorithms.
-    pub(crate) host_key: AlgorithmList<Box<dyn HostKeyAlgorithm>>,
+    pub(crate) host_key: AlgorithmList<HostKeyAlgorithmEntry>,
     /// The algorithms for client to server communication.
     pub(crate) c2s: OneWayPacketAlgorithms,
     /// The algorithms for server to client communication.
@@ -226,12 +199,12 @@ impl ConnectionAlgorithms {
     pub(crate) fn unload_algorithm_keys(&mut self) {
         let encryption_c2s = self.c2s.encryption.current();
         let encryption_s2c = self.s2c.encryption.current();
-        let mac_c2s = if encryption_c2s.mac_size().is_none() {
+        let mac_c2s = if !encryption_c2s.computes_mac() {
             Some(self.c2s.mac.current())
         } else {
             None
         };
-        let mac_s2c = if encryption_s2c.mac_size().is_none() {
+        let mac_s2c = if !encryption_s2c.computes_mac() {
             Some(self.s2c.mac.current())
         } else {
             None
@@ -282,12 +255,12 @@ impl ConnectionAlgorithms {
             .compression
             .choose(chosen_algorithms.compression_s2c);
 
-        let mut encryption_c2s_iv = vec![0; encryption_c2s.iv_size()];
-        let mut encryption_s2c_iv = vec![0; encryption_s2c.iv_size()];
-        let mut encryption_c2s_key = vec![0; encryption_c2s.key_size()];
-        let mut encryption_s2c_key = vec![0; encryption_s2c.key_size()];
-        let mut mac_c2s_key = vec![0; mac_c2s.as_ref().map(|a| a.key_size()).unwrap_or(0)];
-        let mut mac_s2c_key = vec![0; mac_s2c.as_ref().map(|a| a.key_size()).unwrap_or(0)];
+        let mut encryption_c2s_iv = vec![0; encryption_c2s.iv_size];
+        let mut encryption_s2c_iv = vec![0; encryption_s2c.iv_size];
+        let mut encryption_c2s_key = vec![0; encryption_c2s.key_size];
+        let mut encryption_s2c_key = vec![0; encryption_s2c.key_size];
+        let mut mac_c2s_key = vec![0; mac_c2s.as_ref().map(|a| a.key_size).unwrap_or(0)];
+        let mut mac_s2c_key = vec![0; mac_s2c.as_ref().map(|a| a.key_size).unwrap_or(0)];
 
         let mut keys = key_expansion::Keys {
             encryption_c2s_iv: &mut encryption_c2s_iv,
@@ -422,9 +395,9 @@ impl AlgorithmNameList<'static> {
 /// Bundles the three algorithms used for handling regular packets.
 pub(crate) struct PacketAlgorithms<'a> {
     /// The encryption algorithm used for the packets.
-    pub(crate) encryption: &'a mut dyn EncryptionAlgorithm,
+    pub(crate) encryption: &'a mut EncryptionAlgorithmEntry,
     /// The MAC algorithm used for the packets, if different from the encryption algorithm.
-    pub(crate) mac: Option<&'a mut dyn MacAlgorithm>,
+    pub(crate) mac: Option<&'a mut MacAlgorithmEntry>,
     /// The compression algorithm used for the packets.
-    pub(crate) compression: &'a mut dyn CompressionAlgorithm,
+    pub(crate) compression: &'a mut CompressionAlgorithmEntry,
 }

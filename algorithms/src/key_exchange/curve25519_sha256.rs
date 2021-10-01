@@ -1,13 +1,14 @@
 //! Implements the "curve25519-sha256" key exchange algorithm.
 
 use num_bigint::BigInt;
+use rand::{CryptoRng, RngCore};
 use russh_definitions::{
     algorithms::{
-        Algorithm, AlgorithmCategory, HostKeyAlgorithm, KeyExchangeAlgorithm,
-        KeyExchangeAlgorithmError, KeyExchangeData, KeyExchangeResponse,
+        internal::HostKeyAlgorithmEntry, KeyExchangeAlgorithm, KeyExchangeAlgorithmError,
+        KeyExchangeData, KeyExchangeResponse,
     },
     consts::{SSH_MSG_KEX_ECDH_INIT, SSH_MSG_KEX_ECDH_REPLY},
-    write, ConnectionRole, CryptoRngCore, ParsedValue,
+    write, ConnectionRole, ParsedValue,
 };
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -32,42 +33,20 @@ impl Curve25519Sha256 {
             role: None,
         }
     }
-
-    /// Creates a new boxed `curve25519-sha256` key exchange algorithm.
-    pub fn boxed() -> Box<dyn KeyExchangeAlgorithm> {
-        Box::new(Curve25519Sha256::new())
-    }
-}
-
-impl Algorithm for Curve25519Sha256 {
-    fn name(&self) -> &'static str {
-        "curve25519-sha256"
-    }
-
-    fn category(&self) -> AlgorithmCategory {
-        AlgorithmCategory::KeyExchange
-    }
 }
 
 impl KeyExchangeAlgorithm for Curve25519Sha256 {
-    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
-        self
-    }
+    const NAME: &'static str = "curve25519-sha256";
+    const REQUIRES_ENCRYPTION_CAPABLE_HOST_KEY_ALGORITHM: bool = false;
+    const REQUIRES_SIGNATURE_CAPABLE_HOST_KEY_ALGORITHM: bool = true;
+    const HASH_FUNCTION: fn(&[u8]) -> Vec<u8> = |message| Sha256::digest(message).to_vec();
 
-    fn requires_signature_capable_host_key_algorithm(&self) -> bool {
-        true
-    }
-
-    fn requires_encryption_capable_host_key_algorithm(&self) -> bool {
-        false
-    }
-
-    fn start(
+    fn start<Rng: RngCore + CryptoRng + ?Sized>(
         &mut self,
         role: &ConnectionRole,
         _key_exchange_data: &KeyExchangeData,
-        _host_key_algorithm: &mut dyn HostKeyAlgorithm,
-        rng: &mut dyn CryptoRngCore,
+        _host_key_algorithm: &mut HostKeyAlgorithmEntry,
+        rng: &mut Rng,
     ) -> Option<Vec<u8>> {
         self.role.replace(*role);
         match role {
@@ -90,12 +69,12 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
         }
     }
 
-    fn respond(
+    fn respond<Rng: RngCore + CryptoRng + ?Sized>(
         &mut self,
         message: &[u8],
         key_exchange_data: &KeyExchangeData,
-        host_key_algorithm: &mut dyn HostKeyAlgorithm,
-        rng: &mut dyn CryptoRngCore,
+        host_key_algorithm: &mut HostKeyAlgorithmEntry,
+        rng: &mut Rng,
     ) -> Result<KeyExchangeResponse, KeyExchangeAlgorithmError> {
         let role = self
             .role
@@ -222,7 +201,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
 
                 let hash = hasher.result();
 
-                let mut signature = vec![0; host_key_algorithm.signature_length()];
+                let mut signature = vec![0; host_key_algorithm.signature_length];
 
                 host_key_algorithm.sign(&hash, &mut signature);
 
@@ -244,15 +223,11 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
             }
         }
     }
-
-    fn hash_fn(&self) -> fn(&[u8]) -> Vec<u8> {
-        |message| Sha256::digest(message).to_vec()
-    }
 }
 
 impl fmt::Debug for Curve25519Sha256 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Curve25519Sha256 {{ /* fields omitted */ }}")
+        f.debug_struct("Curve25519Sha256").finish_non_exhaustive()
     }
 }
 

@@ -1,12 +1,12 @@
 //! Contains built-in algorithm implementations.
 
 use crate::algorithms::{
-    AddIn, AlgorithmList, CompressionAlgorithm, EncryptionAlgorithm, HostKeyAlgorithm,
-    KeyExchangeAlgorithm, MacAlgorithm,
+    AddIn, AlgorithmList, CompressionAlgorithmEntry, EncryptionAlgorithmEntry,
+    HostKeyAlgorithmEntry, KeyExchangeAlgorithmEntry, MacAlgorithmEntry,
 };
 
 /// Returns a list of all builtin key exchange algorithms.
-pub(crate) fn key_exchange_algorithms() -> AlgorithmList<Box<dyn KeyExchangeAlgorithm>> {
+pub(crate) fn key_exchange_algorithms() -> AlgorithmList<KeyExchangeAlgorithmEntry> {
     let mut list = AlgorithmList::new();
 
     #[cfg(feature = "default-algorithms")]
@@ -18,7 +18,7 @@ pub(crate) fn key_exchange_algorithms() -> AlgorithmList<Box<dyn KeyExchangeAlgo
 }
 
 /// Returns a list of all builtin host key algorithms.
-pub(crate) fn host_key_algorithms() -> AlgorithmList<Box<dyn HostKeyAlgorithm>> {
+pub(crate) fn host_key_algorithms() -> AlgorithmList<HostKeyAlgorithmEntry> {
     let mut list = AlgorithmList::new();
 
     #[cfg(feature = "default-algorithms")]
@@ -30,7 +30,7 @@ pub(crate) fn host_key_algorithms() -> AlgorithmList<Box<dyn HostKeyAlgorithm>> 
 }
 
 /// Returns a list of all builtin encryption algorithms.
-pub(crate) fn encryption_algorithms() -> AlgorithmList<Box<dyn EncryptionAlgorithm>> {
+pub(crate) fn encryption_algorithms() -> AlgorithmList<EncryptionAlgorithmEntry> {
     let mut list = AlgorithmList::new();
 
     #[cfg(feature = "default-algorithms")]
@@ -42,7 +42,7 @@ pub(crate) fn encryption_algorithms() -> AlgorithmList<Box<dyn EncryptionAlgorit
 }
 
 /// Returns a list of all builtin MAC algorithms.
-pub(crate) fn mac_algorithms() -> AlgorithmList<Box<dyn MacAlgorithm>> {
+pub(crate) fn mac_algorithms() -> AlgorithmList<MacAlgorithmEntry> {
     let mut list = AlgorithmList::new();
 
     #[cfg(feature = "default-algorithms")]
@@ -54,7 +54,7 @@ pub(crate) fn mac_algorithms() -> AlgorithmList<Box<dyn MacAlgorithm>> {
 }
 
 /// Returns a list of all builtin compression algorithms.
-pub(crate) fn compression_algorithms() -> AlgorithmList<Box<dyn CompressionAlgorithm>> {
+pub(crate) fn compression_algorithms() -> AlgorithmList<CompressionAlgorithmEntry> {
     let mut list = AlgorithmList::new();
 
     #[cfg(feature = "default-algorithms")]

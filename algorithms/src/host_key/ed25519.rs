@@ -4,7 +4,7 @@ use ed25519_dalek::{
     ed25519::signature::Signature, Keypair, PublicKey, SignatureError, Signer, Verifier,
     SIGNATURE_LENGTH,
 };
-use russh_definitions::algorithms::{Algorithm, AlgorithmCategory, HostKeyAlgorithm};
+use russh_definitions::algorithms::HostKeyAlgorithm;
 use std::{error::Error, fmt};
 
 /// The prefix used for a signature.
@@ -46,11 +46,6 @@ impl Ed25519 {
             public_key: None,
         }
     }
-
-    /// Creates a new boxed `ssh-ed25519` host key algorithm.
-    pub fn boxed() -> Box<dyn HostKeyAlgorithm> {
-        Box::new(Ed25519::new())
-    }
 }
 
 /// A wrapper for `SignatureError` that implements `Error`.
@@ -65,32 +60,11 @@ impl fmt::Display for Ed25519SignatureError {
 
 impl Error for Ed25519SignatureError {}
 
-impl Algorithm for Ed25519 {
-    fn name(&self) -> &'static str {
-        "ssh-ed25519"
-    }
-
-    fn category(&self) -> AlgorithmCategory {
-        AlgorithmCategory::HostKey
-    }
-}
-
 impl HostKeyAlgorithm for Ed25519 {
-    fn as_basic_algorithm(&self) -> &(dyn Algorithm + 'static) {
-        self
-    }
-
-    fn signature_length(&self) -> usize {
-        SIGNATURE_PREFIX.len() + SIGNATURE_LENGTH
-    }
-
-    fn is_encryption_capable(&self) -> bool {
-        false
-    }
-
-    fn is_signature_capable(&self) -> bool {
-        true
-    }
+    const NAME: &'static str = "ssh-ed25519";
+    const SIGNATURE_LENGTH: usize = SIGNATURE_PREFIX.len() + SIGNATURE_LENGTH;
+    const IS_ENCRYPTION_CAPABLE: bool = false;
+    const IS_SIGNATURE_CAPABLE: bool = true;
 
     fn load_keypair(&mut self, keypair: &[u8]) -> Result<(), Box<dyn Error>> {
         let keypair = Keypair::from_bytes(keypair).map_err(Ed25519SignatureError)?;
