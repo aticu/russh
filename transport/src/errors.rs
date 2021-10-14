@@ -48,7 +48,7 @@ pub enum CommunicationError {
 pub enum InitializationError {
     /// There was an error while sending or receiving a packet during initialization.
     #[error("a communication error occurred: {0}")]
-    Communication(CommunicationError),
+    Communication(#[from] CommunicationError),
     /// The protocol version used by the connection partner is unsupported.
     #[error("the ssh version used by the other party (`{0}`) is not supported")]
     UnsupportedProtocolVersion(VersionInformation),
@@ -67,7 +67,7 @@ pub enum InitializationError {
 pub enum KeyExchangeProcedureError {
     /// There was an error while sending or receiving a packet during key exchange.
     #[error("a communication error occurred: {0}")]
-    Communication(CommunicationError),
+    Communication(#[from] CommunicationError),
     /// No algorithm was found for the given algorithm role.
     #[error("{0}: no suitable algorithm found")]
     NoAlgorithmFound(AlgorithmRole),
@@ -114,7 +114,7 @@ pub enum BuildError {
 pub enum ServiceRequestError {
     /// There was an error while sending or receiving a packet during the sevice request.
     #[error("a communication error occurred: {0}")]
-    Communication(CommunicationError),
+    Communication(#[from] CommunicationError),
     /// A packet was sent with an invalid format.
     #[error("the service request reply packet had an invalid format")]
     InvalidFormat,

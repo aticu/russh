@@ -10,12 +10,12 @@
 
 use definitions::algorithms::internal::CryptoRngCore;
 use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
-use std::{borrow::Cow, fmt};
+use std::fmt;
 
 use crate::{
     errors::{BuildError, CommunicationError, LoadHostKeyError, ServiceRequestError},
     input_handler::InputHandler,
-    output_handler::{OutputHandler, PacketFlusher},
+    output_handler::OutputHandler,
     padding_length::PaddingLengthDistribution,
     protocol::ProtocolHandler,
 };
@@ -65,7 +65,7 @@ impl<Input: InputStream, Output: OutputStream> fmt::Debug for Handler<Input, Out
 
 impl<Input: InputStream, Output: OutputStream> Handler<Input, Output> {
     /// Receives the next packet from the other party.
-    pub async fn next_packet(&mut self) -> Result<Cow<'_, [u8]>, CommunicationError> {
+    pub async fn next_packet(&mut self) -> Result<Vec<u8>, CommunicationError> {
         self.protocol_handler.next_user_packet().await
     }
 
@@ -80,11 +80,8 @@ impl<Input: InputStream, Output: OutputStream> Handler<Input, Output> {
     ///
     /// # Panics
     /// This function may panic if the total packet length does not fit into a `u32`.
-    pub fn send_packet(
-        &mut self,
-        data: &[u8],
-    ) -> Result<PacketFlusher<Output>, CommunicationError> {
-        self.protocol_handler.send_user_packet(data)
+    pub async fn send_packet(&mut self, data: &[u8]) -> Result<(), CommunicationError> {
+        self.protocol_handler.send_user_packet(data).await
     }
 
     /// Sends a service request to the other party.
@@ -228,8 +225,11 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         }
 
         ProtocolHandler::new(
-            InputHandler::new(self.input),
-            OutputHandler::new(self.output, self.padding_length_distribution),
+            (InputHandler::new(), self.input),
+            (
+                OutputHandler::new(self.padding_length_distribution),
+                self.output,
+            ),
             self.rng.unwrap_or_else(|| Box::new(StdRng::from_entropy())),
             self.connection_role,
             self.connection_algorithms,

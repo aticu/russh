@@ -40,8 +40,8 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
     connection_role: ConnectionRole,
     connection_algorithms: &mut ConnectionAlgorithms,
     rng: &mut dyn CryptoRngCore,
-    input_handler: &mut InputHandler<Input>,
-    output_handler: &mut OutputHandler<Output>,
+    (input_handler, input): (&mut InputHandler, &mut Input),
+    (output_handler, output): (&mut OutputHandler, &mut Output),
 ) -> Result<KeyExchangeResult, KeyExchangeProcedureError> {
     let kex_algorithm = connection_algorithms.kex.current();
     let host_key_algorithm = connection_algorithms.host_key.current();
@@ -49,22 +49,26 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
     if let Some(start_packet) =
         kex_algorithm.start(&connection_role, key_exchange_data, host_key_algorithm, rng)
     {
+        output_handler.write_packet(
+            &start_packet,
+            outgoing_algorithms!(connection_algorithms, connection_role),
+            rng,
+        );
         output_handler
-            .send_packet(
-                &start_packet,
-                outgoing_algorithms!(connection_algorithms, connection_role),
-                rng,
-            )
-            .flush()
+            .flush_into(output)
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
     }
 
     let (host_key, shared_secret, exchange_hash, message) = loop {
-        let answer = input_handler
-            .next_packet(incoming_algorithms!(connection_algorithms, connection_role))
-            .await
-            .map_err(KeyExchangeProcedureError::Communication)?;
+        let answer = loop {
+            match input_handler
+                .read_packet(incoming_algorithms!(connection_algorithms, connection_role))?
+            {
+                Some(answer) => break answer,
+                None => input_handler.read_more_data(input).await?,
+            };
+        };
 
         if MessageType::from_message(&answer) != Some(MessageType::KeyExchangeMethodSpecific) {
             return Err(KeyExchangeProcedureError::NonKeyExchangePacketReceived);
@@ -78,30 +82,27 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
                 message,
             }) => break (host_key, shared_secret, exchange_hash, message),
             Ok(KeyExchangeResponse::Packet(packet)) => {
-                output_handler
-                    .send_packet(
-                        &packet,
-                        outgoing_algorithms!(connection_algorithms, connection_role),
-                        rng,
-                    )
-                    .flush()
-                    .await
-                    .map_err(|err| {
-                        KeyExchangeProcedureError::Communication(CommunicationError::Io(err))
-                    })?;
+                output_handler.write_packet(
+                    &packet,
+                    outgoing_algorithms!(connection_algorithms, connection_role),
+                    rng,
+                );
+                output_handler.flush_into(output).await.map_err(|err| {
+                    KeyExchangeProcedureError::Communication(CommunicationError::Io(err))
+                })?;
             }
             Err(err) => return Err(KeyExchangeProcedureError::KeyExchangeAlgorithmError(err)),
         }
     };
 
     if let Some(message) = message {
+        output_handler.write_packet(
+            &message,
+            outgoing_algorithms!(connection_algorithms, connection_role),
+            rng,
+        );
         output_handler
-            .send_packet(
-                &message,
-                outgoing_algorithms!(connection_algorithms, connection_role),
-                rng,
-            )
-            .flush()
+            .flush_into(output)
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
     }

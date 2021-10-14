@@ -14,7 +14,7 @@ use crate::{
         CommunicationError, InitializationError, KeyExchangeProcedureError, ServiceRequestError,
     },
     input_handler::{InputHandler, InputStream},
-    output_handler::{OutputHandler, OutputStream, PacketFlusher},
+    output_handler::{OutputHandler, OutputStream},
     version::VersionInformation,
     CryptoRngCore,
 };
@@ -24,9 +24,13 @@ mod kex;
 /// Handles all protocol interactions at the transport layer level.
 pub(crate) struct ProtocolHandler<Input: InputStream, Output: OutputStream> {
     /// The handler for the input to the transport layer.
-    input_handler: InputHandler<Input>,
+    input_handler: InputHandler,
+    /// The source of the input.
+    input: Input,
     /// The handler for the output of the transport layer.
-    output_handler: OutputHandler<Output>,
+    output_handler: OutputHandler,
+    /// The output used by the transport layer.
+    output: Output,
     /// The identification string of the other side.
     other_identification_string: Vec<u8>,
     /// The session identifier.
@@ -71,14 +75,16 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
     }
 
     /// Receives the next packet that will be sent to the user.
-    pub(crate) async fn next_user_packet(&mut self) -> Result<Cow<'_, [u8]>, CommunicationError> {
-        let packet = self
-            .input_handler
-            .next_packet(incoming_algorithms!(
+    pub(crate) async fn next_user_packet(&mut self) -> Result<Vec<u8>, CommunicationError> {
+        let packet = loop {
+            match self.input_handler.read_packet(incoming_algorithms!(
                 self.connection_algorithms,
                 self.connection_role
-            ))
-            .await?;
+            ))? {
+                Some(packet) => break packet.to_vec(),
+                None => self.input_handler.read_more_data(&mut self.input).await?,
+            };
+        };
 
         // TODO: filter transport layer packets
 
@@ -89,41 +95,44 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
     ///
     /// # Panics
     /// This function may panic if the total packet length does not fit into a `u32`.
-    pub(crate) fn send_user_packet<'a>(
-        &'a mut self,
-        data: &[u8],
-    ) -> Result<PacketFlusher<'a, Output>, CommunicationError> {
+    pub(crate) async fn send_user_packet(&mut self, data: &[u8]) -> Result<(), CommunicationError> {
         if Self::handles(data) {
             Err(CommunicationError::ProtocolInternalPacketSent)
         } else {
-            Ok(self.output_handler.send_packet(
+            self.output_handler.write_packet(
                 data,
                 outgoing_algorithms!(self.connection_algorithms, self.connection_role),
                 &mut self.rng,
-            ))
+            );
+            self.output_handler.flush_into(&mut self.output).await?;
+
+            Ok(())
         }
     }
 
     /// Initializes the connection up until the first key exchange is performed.
     pub(crate) async fn new(
-        mut input_handler: InputHandler<Input>,
-        mut output_handler: OutputHandler<Output>,
+        (mut input_handler, mut input): (InputHandler, Input),
+        (mut output_handler, mut output): (OutputHandler, Output),
         rng: Box<dyn CryptoRngCore>,
         connection_role: ConnectionRole,
         connection_algorithms: ConnectionAlgorithms,
         allow_none_algorithms: bool,
         version_info: VersionInformation,
     ) -> Result<Self, InitializationError> {
+        output_handler.initialize(&version_info);
+
         output_handler
-            .initialize(&version_info)
-            .flush()
+            .flush_into(&mut output)
             .await
             .map_err(|err| InitializationError::Communication(CommunicationError::Io(err)))?;
 
-        let (other_version_info, identification_string) = input_handler
-            .initialize()
-            .await
-            .map_err(InitializationError::Communication)?;
+        let (other_version_info, identification_string) = loop {
+            match input_handler.initialize()? {
+                Some(result) => break result,
+                None => input_handler.read_more_data(&mut input).await?,
+            };
+        };
         if other_version_info.protocol_version() != "2.0" {
             return Err(InitializationError::UnsupportedProtocolVersion(
                 other_version_info,
@@ -135,7 +144,9 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
 
         let mut handler = ProtocolHandler {
             input_handler,
+            input,
             output_handler,
+            output,
             other_identification_string: identification_string,
             session_id: None,
             rng,
@@ -164,15 +175,16 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         // TODO: consider sending guess packets?
         let local_kexinit = self.send_kexinit_packet().await?;
 
-        let remote_kexinit = self
-            .input_handler
-            .next_packet(incoming_algorithms!(
+        let remote_kexinit = loop {
+            match self.input_handler.read_packet(incoming_algorithms!(
                 self.connection_algorithms,
                 self.connection_role
-            ))
-            .await
-            .map_err(KeyExchangeProcedureError::Communication)?
-            .to_vec();
+            ))? {
+                Some(remote_kexinit) => break remote_kexinit.to_vec(),
+                None => self.input_handler.read_more_data(&mut self.input).await?,
+            };
+        };
+
         let kex::KexinitPacket {
             cookie: _,
             algorithm_list: other_list,
@@ -224,8 +236,8 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
                 self.connection_role,
                 &mut self.connection_algorithms,
                 &mut self.rng,
-                &mut self.input_handler,
-                &mut self.output_handler,
+                (&mut self.input_handler, &mut self.input),
+                (&mut self.output_handler, &mut self.output),
             )
             .await;
 
@@ -240,24 +252,25 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         // TODO: verify host key here
         let _ = host_key;
 
+        self.output_handler.write_packet(
+            &[SSH_MSG_NEWKEYS],
+            outgoing_algorithms!(self.connection_algorithms, self.connection_role),
+            &mut self.rng,
+        );
         self.output_handler
-            .send_packet(
-                &[SSH_MSG_NEWKEYS],
-                outgoing_algorithms!(self.connection_algorithms, self.connection_role),
-                &mut self.rng,
-            )
-            .flush()
+            .flush_into(&mut self.output)
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
 
-        let answer = self
-            .input_handler
-            .next_packet(incoming_algorithms!(
+        let answer = loop {
+            match self.input_handler.read_packet(incoming_algorithms!(
                 self.connection_algorithms,
                 self.connection_role
-            ))
-            .await
-            .map_err(KeyExchangeProcedureError::Communication)?;
+            ))? {
+                Some(answer) => break answer,
+                None => self.input_handler.read_more_data(&mut self.input).await?,
+            };
+        };
 
         if answer[..] != [SSH_MSG_NEWKEYS][..] {
             return Err(KeyExchangeProcedureError::NoNewkeysPacket);
@@ -298,13 +311,13 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         kex::write_kexinit(&local_kexinit, &mut local_kexinit_packet)
             .expect("write operations on vec don't fail");
 
+        self.output_handler.write_packet(
+            &local_kexinit_packet,
+            outgoing_algorithms!(self.connection_algorithms, self.connection_role),
+            &mut self.rng,
+        );
         self.output_handler
-            .send_packet(
-                &local_kexinit_packet,
-                outgoing_algorithms!(self.connection_algorithms, self.connection_role),
-                &mut self.rng,
-            )
-            .flush()
+            .flush_into(&mut self.output)
             .await
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
 
@@ -321,24 +334,25 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         write::byte(SSH_MSG_SERVICE_REQUEST, &mut packet).expect("vec writes don't fail");
         write::string(service, &mut packet).expect("vec writes don't fail");
 
+        self.output_handler.write_packet(
+            &packet,
+            outgoing_algorithms!(self.connection_algorithms, self.connection_role),
+            &mut self.rng,
+        );
         self.output_handler
-            .send_packet(
-                &packet,
-                outgoing_algorithms!(self.connection_algorithms, self.connection_role),
-                &mut self.rng,
-            )
-            .flush()
+            .flush_into(&mut self.output)
             .await
             .map_err(|e| ServiceRequestError::Communication(CommunicationError::Io(e)))?;
 
-        let answer = self
-            .input_handler
-            .next_packet(incoming_algorithms!(
+        let answer = loop {
+            match self.input_handler.read_packet(incoming_algorithms!(
                 self.connection_algorithms,
                 self.connection_role
-            ))
-            .await
-            .map_err(ServiceRequestError::Communication)?;
+            ))? {
+                Some(answer) => break answer,
+                None => self.input_handler.read_more_data(&mut self.input).await?,
+            };
+        };
 
         // TODO: possibly handle other packets in between, like SSG_MSG_IGNORE (this also applies
         // to other places)
@@ -378,7 +392,8 @@ fn negotiate_algorithms<'names>(
                                        server_mac,
                                        client_compression,
                                        server_compression,
-                                       direction| {
+                                       direction|
+     -> Result<_, KeyExchangeProcedureError> {
         let encryption = negotiate_basic_algorithm(
             client_encryption,
             server_encryption,

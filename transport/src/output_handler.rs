@@ -17,37 +17,32 @@ pub trait OutputStream: AsyncWrite + Unpin {}
 impl<T: AsyncWrite + Unpin> OutputStream for T {}
 
 /// Handles all the output to the partner of the communication.
-pub(crate) struct OutputHandler<Output: OutputStream> {
+pub(crate) struct OutputHandler {
     /// The writer where packets are prepared for sending.
     packet_writer: WriterOutputStream,
-    /// The output to which packes will be sent.
-    output: Output,
     /// The number of packets that have been sent (modulo 32 bits).
     sequence_number: u32,
     /// The padding length distribution to be used.
     padding_length_distribution: Box<PaddingLengthDistribution>,
 }
 
-impl<Output: OutputStream + fmt::Debug> fmt::Debug for OutputHandler<Output> {
+impl fmt::Debug for OutputHandler {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("OutputHandler")
             .field("packet_writer", &self.packet_writer)
-            .field("output", &self.output)
             .field("sequence_number", &self.sequence_number)
             .field("padding_length_distribution", &"opaque function")
             .finish()
     }
 }
 
-impl<Output: OutputStream> OutputHandler<Output> {
+impl OutputHandler {
     /// Creates a new handler for output.
     pub(crate) fn new(
-        output: Output,
         padding_length_distribution: Option<Box<PaddingLengthDistribution>>,
-    ) -> OutputHandler<Output> {
+    ) -> OutputHandler {
         OutputHandler {
             packet_writer: WriterOutputStream::new(),
-            output,
             sequence_number: 0,
             padding_length_distribution: padding_length_distribution
                 .unwrap_or_else(|| padding_length::default_distribution()),
@@ -55,28 +50,20 @@ impl<Output: OutputStream> OutputHandler<Output> {
     }
 
     /// Initializes the output by writing the initialization string.
-    pub(crate) fn initialize(
-        &mut self,
-        version_info: &VersionInformation,
-    ) -> PacketFlusher<Output> {
+    pub(crate) fn initialize(&mut self, version_info: &VersionInformation) {
         self.packet_writer.write_version_info(version_info);
-
-        PacketFlusher {
-            packet_writer: &mut self.packet_writer,
-            output: &mut self.output,
-        }
     }
 
     /// Sends a packet to the output.
     ///
     /// # Panics
     /// This function may panic, if the total length of the packet does not fit into a `u32`.
-    pub(crate) fn send_packet(
+    pub(crate) fn write_packet(
         &mut self,
         payload: &[u8],
         algorithms: PacketAlgorithms,
         rng: &mut dyn CryptoRngCore,
-    ) -> PacketFlusher<Output> {
+    ) {
         let compressed = algorithms.compression.compress(Cow::Borrowed(payload));
 
         self.packet_writer.write_packet(
@@ -89,63 +76,21 @@ impl<Output: OutputStream> OutputHandler<Output> {
         );
 
         self.sequence_number = self.sequence_number.wrapping_add(1);
-
-        PacketFlusher {
-            packet_writer: &mut self.packet_writer,
-            output: &mut self.output,
-        }
     }
-}
 
-/// Allows flushing sent packages to the output stream.
-///
-/// # Note
-/// While `PacketFlusher` is marked `must_use`, it can be safely ignored,
-/// as long as the `flush` method is invoked on a `PacketFlusher` at a later point.
-/// The `flush` method always flushes the entire unflushed stream.
-#[must_use = "the data isn't sent until it is flushed"]
-#[derive(Debug)]
-pub struct PacketFlusher<'o, Output: OutputStream> {
-    /// The packet writer where the data to flush sits.
-    packet_writer: &'o mut WriterOutputStream,
-    /// The output where the data should be flushed to.
-    output: &'o mut Output,
-}
-
-impl<'o, Output: OutputStream> PacketFlusher<'o, Output> {
-    /// Flushes the buffered data to the output stream.
-    ///
-    /// This is what you want to do in most cases, since the data will not reach the other party,
-    /// if you don't flush.
-    pub async fn flush(self) -> io::Result<()> {
+    /// Flushes the buffered data to the given output stream.
+    pub(crate) async fn flush_into<O: OutputStream>(&mut self, output: &mut O) -> io::Result<()> {
         let buf = self.packet_writer.written_data();
 
         if !buf.is_empty() {
-            self.output.write_all(buf).await?;
+            output.write_all(buf).await?;
 
             let len = buf.len();
             self.packet_writer.remove_to(len);
         }
 
-        self.output.flush().await
+        output.flush().await
     }
-
-    /// Does not flush the output.
-    ///
-    /// This method is a no-op. It just exists to make provide more context at the right place
-    /// and to make code more readable.
-    ///
-    /// This is only useful, if you want to send many packets in rapid succession.
-    /// Then you could not flush the first few packets and flush the last one to flush all the
-    /// data at once.
-    ///
-    /// ```ignore
-    /// for _ in 0..100 {
-    ///     handler.send_packet(&[1, 2, 3]).dont_flush();
-    /// }
-    /// handler.send_packet(&[1, 2, 3]).flush();
-    /// ```
-    pub fn dont_flush(self) {}
 }
 
 #[cfg(test)]
@@ -156,7 +101,6 @@ mod tests {
     use super::*;
     use crate::{
         algorithms::ConnectionAlgorithms,
-        errors::CommunicationError,
         input_handler::InputHandler,
         test_helpers::{FakeNetworkInput, FakeNetworkOutput},
         ConnectionRole,
@@ -164,54 +108,52 @@ mod tests {
 
     #[test]
     fn write_packet_none() {
-        let fake_output = FakeNetworkOutput::new(1);
+        let mut fake_output = FakeNetworkOutput::new(1);
 
-        let mut output_handler = OutputHandler::new(fake_output, None);
+        let mut output_handler = OutputHandler::new(None);
         let mut rng = Box::new(ChaCha20Rng::from_seed(Default::default()));
         let version_info = VersionInformation::new("test").unwrap();
 
         let mut connection_algorithms = ConnectionAlgorithms::default();
 
         futures::executor::block_on(async {
-            let flusher = output_handler.initialize(&version_info);
+            output_handler.initialize(&version_info);
 
-            assert_eq!(flusher.output.written(), &[]);
-
-            flusher.dont_flush();
-
-            let flusher = output_handler.send_packet(
+            output_handler.write_packet(
                 b"this is an important message",
                 outgoing_algorithms!(connection_algorithms, ConnectionRole::Client),
                 &mut rng,
             );
 
-            assert_eq!(flusher.output.written(), &[]);
-
-            assert!(matches!(flusher.flush().await, Ok(())));
+            assert!(matches!(
+                output_handler.flush_into(&mut fake_output).await,
+                Ok(())
+            ));
         });
 
-        assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
+        assert_eq!(fake_output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
 
         futures::executor::block_on(async {
-            let flusher = output_handler.send_packet(
+            output_handler.write_packet(
                 b"one more message",
                 outgoing_algorithms!(connection_algorithms, ConnectionRole::Client),
                 &mut rng,
             );
 
-            assert_eq!(flusher.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d"[..]);
-
-            assert!(matches!(flusher.flush().await, Ok(())));
+            assert!(matches!(
+                output_handler.flush_into(&mut fake_output).await,
+                Ok(())
+            ));
         });
 
-        assert_eq!(output_handler.output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d\x00\x00\x00\x1c\x0bone more message\xc3\x87\xb6\x69\xb2\xee\x65\x86\x9f\x07\xe7"[..]);
+        assert_eq!(fake_output.written(), &b"SSH-2.0-test\r\n\x00\x00\x00\x24\x07this is an important message\xa8\x36\xef\xcc\x8b\x77\x0d\x00\x00\x00\x1c\x0bone more message\xc3\x87\xb6\x69\xb2\xee\x65\x86\x9f\x07\xe7"[..]);
     }
 
     #[test]
     fn write_then_parse() {
-        let fake_output = FakeNetworkOutput::new(1);
+        let mut fake_output = FakeNetworkOutput::new(1);
 
-        let mut output_handler = OutputHandler::new(fake_output, None);
+        let mut output_handler = OutputHandler::new(None);
         let mut rng = Box::new(ChaCha20Rng::from_seed(Default::default()));
         let version_info = VersionInformation::new("test").unwrap();
 
@@ -220,33 +162,38 @@ mod tests {
         let message = b"this is an important message";
 
         futures::executor::block_on(async {
+            output_handler.initialize(&version_info);
+
             assert!(matches!(
-                output_handler.initialize(&version_info).flush().await,
+                output_handler.flush_into(&mut fake_output).await,
                 Ok(())
             ));
 
+            output_handler.write_packet(
+                message,
+                outgoing_algorithms!(connection_algorithms, ConnectionRole::Client),
+                &mut rng,
+            );
             assert!(matches!(
-                output_handler
-                    .send_packet(
-                        message,
-                        outgoing_algorithms!(connection_algorithms, ConnectionRole::Client),
-                        &mut rng
-                    )
-                    .flush()
-                    .await,
+                output_handler.flush_into(&mut fake_output).await,
                 Ok(())
             ));
         });
 
-        let fake_input = FakeNetworkInput::new(output_handler.output.written().to_owned(), 1);
+        let written_bytes = fake_output.written().len();
+        let mut fake_input = FakeNetworkInput::new(fake_output.written().to_owned(), written_bytes);
 
-        let mut input_handler = InputHandler::new(fake_input);
+        let mut input_handler = InputHandler::new();
 
         let mut connection_algorithms = ConnectionAlgorithms::default();
 
         futures::executor::block_on(async {
             assert_eq!(
-                input_handler.initialize().await.unwrap(),
+                input_handler.read_more_data(&mut fake_input).await.unwrap(),
+                written_bytes
+            );
+            assert_eq!(
+                input_handler.initialize().unwrap().unwrap(),
                 (
                     VersionInformation::new("test").unwrap(),
                     b"SSH-2.0-test".to_vec()
@@ -255,23 +202,21 @@ mod tests {
 
             assert_eq!(
                 input_handler
-                    .next_packet(incoming_algorithms!(
+                    .read_packet(incoming_algorithms!(
                         connection_algorithms,
                         ConnectionRole::Server
                     ))
-                    .await
-                    .expect("packet exists"),
+                    .unwrap()
+                    .unwrap(),
                 message.to_vec()
             );
 
             assert!(matches!(
-                input_handler
-                    .next_packet(incoming_algorithms!(
-                        connection_algorithms,
-                        ConnectionRole::Server
-                    ))
-                    .await,
-                Err(CommunicationError::EndOfInput)
+                input_handler.read_packet(incoming_algorithms!(
+                    connection_algorithms,
+                    ConnectionRole::Server
+                )),
+                Ok(None)
             ));
         });
     }
