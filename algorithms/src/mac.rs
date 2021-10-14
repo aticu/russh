@@ -1,6 +1,6 @@
 //! Provides the MAC algorithms used by the SSH transport layer.
 
-use russh_definitions::algorithms::{internal, InvalidMacError, MacAlgorithm};
+use definitions::algorithms::{internal, InvalidMacError, MacAlgorithm};
 
 #[cfg(any(
     feature = "hmac-sha1",

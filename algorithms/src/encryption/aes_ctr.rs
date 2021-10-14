@@ -1,9 +1,7 @@
 //! Provides implementations of the "aesXXX-ctr" encryption algorithms.
 
 use aes_ctr::stream_cipher::{generic_array::GenericArray, NewStreamCipher, StreamCipher};
-use russh_definitions::algorithms::{
-    EncryptionAlgorithm, EncryptionContext, PlainEncryptionAlgorithm,
-};
+use definitions::algorithms::{EncryptionAlgorithm, EncryptionContext, PlainEncryptionAlgorithm};
 use std::mem;
 use zeroize::Zeroize;
 

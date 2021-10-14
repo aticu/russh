@@ -1,6 +1,6 @@
 //! Provides the key exchange algorithms used by the SSH transport layer.
 
-use russh_definitions::algorithms::internal;
+use definitions::algorithms::internal;
 
 #[cfg(feature = "curve25519-sha256")]
 #[doc(hidden)]

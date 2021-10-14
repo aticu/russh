@@ -1,7 +1,7 @@
 //! Implements the key expansions for the encryption and MAC algorithms.
 
+use definitions::{algorithms::KeyExchangeHashFunction, write};
 use num_bigint::BigInt;
-use russh_definitions::{algorithms::KeyExchangeHashFunction, write};
 
 /// References the buffers where the keys are generated.
 pub(super) struct Keys<'a> {

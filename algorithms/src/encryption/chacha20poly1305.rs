@@ -12,7 +12,7 @@ use zeroize::Zeroize as _;
 
 use std::{fmt, mem};
 
-use russh_definitions::{
+use definitions::{
     algorithms::{
         EncryptionAlgorithm, EncryptionContext, InvalidMacError, MacComputingEncryptionAlgorithm,
     },

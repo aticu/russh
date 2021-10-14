@@ -1,7 +1,6 @@
 //! Provides traits for the needed types of algorithms.
 
-use num_bigint::BigInt;
-pub(crate) use russh_definitions::algorithms::{
+pub(crate) use definitions::algorithms::{
     internal::{
         CompressionAlgorithmEntry, EncryptionAlgorithmEntry, HostKeyAlgorithmEntry,
         KeyExchangeAlgorithmEntry, MacAlgorithmEntry,
@@ -9,6 +8,7 @@ pub(crate) use russh_definitions::algorithms::{
     AlgorithmCategory, AlgorithmDirection, AlgorithmRole, EncryptionContext,
     KeyExchangeHashFunction,
 };
+use num_bigint::BigInt;
 use std::borrow::Cow;
 
 use crate::errors::{InvalidNameError, LoadHostKeyError};
@@ -107,7 +107,7 @@ impl ConnectionAlgorithms {
 
     /// Adds a new key exchange algorithm.
     pub fn add_key_exchange_algorithm<
-        A: russh_definitions::algorithms::KeyExchangeAlgorithm + 'static,
+        A: definitions::algorithms::KeyExchangeAlgorithm + 'static,
     >(
         &mut self,
         algorithm: A,
@@ -118,7 +118,7 @@ impl ConnectionAlgorithms {
     }
 
     /// Adds a new host key algorithm.
-    pub fn add_host_key_algorithm<A: russh_definitions::algorithms::HostKeyAlgorithm + 'static>(
+    pub fn add_host_key_algorithm<A: definitions::algorithms::HostKeyAlgorithm + 'static>(
         &mut self,
         algorithm: A,
     ) -> Result<&mut Self, InvalidNameError> {
@@ -129,7 +129,7 @@ impl ConnectionAlgorithms {
 
     /// Adds a new encryption algorithm.
     pub fn add_encryption_algorithm<
-        A: russh_definitions::algorithms::EncryptionAlgorithm + Clone + 'static,
+        A: definitions::algorithms::EncryptionAlgorithm + Clone + 'static,
     >(
         &mut self,
         algorithm: A,
@@ -143,7 +143,7 @@ impl ConnectionAlgorithms {
     }
 
     /// Adds a new MAC algorithm.
-    pub fn add_mac_algorithm<A: russh_definitions::algorithms::MacAlgorithm + Clone + 'static>(
+    pub fn add_mac_algorithm<A: definitions::algorithms::MacAlgorithm + Clone + 'static>(
         &mut self,
         algorithm: A,
     ) -> Result<&mut Self, InvalidNameError> {
@@ -155,7 +155,7 @@ impl ConnectionAlgorithms {
 
     /// Adds a new compression algorithm.
     pub fn add_compression_algorithm<
-        A: russh_definitions::algorithms::CompressionAlgorithm + Clone + 'static,
+        A: definitions::algorithms::CompressionAlgorithm + Clone + 'static,
     >(
         &mut self,
         algorithm: A,

@@ -3,7 +3,7 @@
 //! The initialization sequence is described in
 //! [RFC 4253](https://tools.ietf.org/html/rfc4253).
 
-use russh_definitions::parse::{self, ParseError, ParsedValue};
+use definitions::parse::{self, ParseError, ParsedValue};
 
 use crate::version::VersionInformation;
 

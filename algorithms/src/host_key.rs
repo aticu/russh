@@ -1,6 +1,6 @@
 //! Provides the encryption algorithms used by the SSH transport layer.
 
-use russh_definitions::algorithms::internal;
+use definitions::algorithms::internal;
 
 #[cfg(feature = "ssh-ed25519")]
 #[doc(hidden)]

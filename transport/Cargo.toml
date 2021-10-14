@@ -8,11 +8,11 @@ edition = "2021"
 [features]
 default = ["default-algorithms"]
 
-default-algorithms = ["russh-algorithms"]
+default-algorithms = ["algorithms"]
 
 [dependencies]
-russh-definitions = { path = "../definitions" }
-russh-algorithms = { path = "../algorithms", optional = true }
+definitions = { package = "russh-definitions", path = "../definitions" }
+algorithms = { package = "russh-algorithms", path = "../algorithms", optional = true }
 num-bigint = "0.4"
 tokio = { version = "0.2", features = ["io-util"] }
 rand = "0.7"

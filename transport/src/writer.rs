@@ -2,7 +2,7 @@
 //!
 //! This is the counter part to the `parser` module.
 
-use russh_definitions::{algorithms::internal::CryptoRngCore, write};
+use definitions::{algorithms::internal::CryptoRngCore, write};
 use std::{
     cmp::{max, min},
     convert::TryInto,
@@ -206,9 +206,9 @@ impl WriterOutputStream {
 
 #[cfg(test)]
 mod tests {
+    use algorithms::{encryption, mac};
     use rand::SeedableRng;
     use rand_chacha::ChaCha20Rng;
-    use russh_algorithms::{encryption, mac};
 
     use super::*;
     use crate::padding_length;

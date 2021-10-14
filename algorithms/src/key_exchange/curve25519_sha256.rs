@@ -1,8 +1,6 @@
 //! Implements the "curve25519-sha256" key exchange algorithm.
 
-use num_bigint::BigInt;
-use rand::{CryptoRng, RngCore};
-use russh_definitions::{
+use definitions::{
     algorithms::{
         internal::HostKeyAlgorithmEntry, KeyExchangeAlgorithm, KeyExchangeAlgorithmError,
         KeyExchangeData, KeyExchangeResponse,
@@ -10,6 +8,8 @@ use russh_definitions::{
     consts::{SSH_MSG_KEX_ECDH_INIT, SSH_MSG_KEX_ECDH_REPLY},
     write, ConnectionRole, ParsedValue,
 };
+use num_bigint::BigInt;
+use rand::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 use std::fmt;
 use x25519_dalek::{EphemeralSecret, PublicKey};
@@ -54,7 +54,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
                 let secret = EphemeralSecret::new(rng);
                 let public = PublicKey::from(&secret);
 
-                use russh_definitions::Compose as _;
+                use definitions::Compose as _;
                 let packet = MsgKexEcdhInit {
                     client_public_key: (&public.as_bytes()[..]).into(),
                     ..Default::default()
@@ -82,7 +82,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
 
         match role {
             ConnectionRole::Client => {
-                use russh_definitions::Parse;
+                use definitions::Parse;
                 let ParsedValue {
                     value:
                         MsgKexEcdhReply {
@@ -156,7 +156,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
                 })
             }
             ConnectionRole::Server => {
-                use russh_definitions::Parse as _;
+                use definitions::Parse as _;
                 let ParsedValue {
                     value: init_msg, ..
                 } = MsgKexEcdhInit::parse(message)
@@ -205,7 +205,7 @@ impl KeyExchangeAlgorithm for Curve25519Sha256 {
 
                 host_key_algorithm.sign(&hash, &mut signature);
 
-                use russh_definitions::Compose as _;
+                use definitions::Compose as _;
                 let packet = MsgKexEcdhReply {
                     server_host_key: host_key_algorithm.public_key().into(),
                     server_public_key: (&own_public.as_bytes()[..]).into(),
@@ -231,7 +231,7 @@ impl fmt::Debug for Curve25519Sha256 {
     }
 }
 
-russh_definitions::ssh_packet! {
+definitions::ssh_packet! {
     #[derive(Default)]
     struct MsgKexEcdhInit {
         byte     {SSH_MSG_KEX_ECDH_INIT}

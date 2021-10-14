@@ -1,10 +1,10 @@
 //! Provides an implementation of the "ssh-ed25519" host key algorithm.
 
+use definitions::algorithms::HostKeyAlgorithm;
 use ed25519_dalek::{
     ed25519::signature::Signature, Keypair, PublicKey, SignatureError, Signer, Verifier,
     SIGNATURE_LENGTH,
 };
-use russh_definitions::algorithms::HostKeyAlgorithm;
 use std::{error::Error, fmt};
 
 /// The prefix used for a signature.

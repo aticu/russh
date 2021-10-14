@@ -2,7 +2,7 @@
 //!
 //! This is the counter part to the `writer` module.
 
-use russh_definitions::{parse, ParsedValue};
+use definitions::{parse, ParsedValue};
 use std::cmp::{max, min};
 
 use self::{
@@ -253,7 +253,7 @@ impl ParserInputStream {
 
 #[cfg(test)]
 mod tests {
-    use russh_algorithms::encryption;
+    use algorithms::encryption;
 
     use super::*;
 

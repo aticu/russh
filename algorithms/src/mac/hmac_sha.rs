@@ -1,5 +1,6 @@
 //! Provides implementations of the "hmac-shaX(-XXX)" MAC algorithms.
 
+use definitions::algorithms::{InvalidMacError, MacAlgorithm};
 use hmac::{
     crypto_mac::{
         generic_array::{typenum::Unsigned, GenericArray},
@@ -8,7 +9,6 @@ use hmac::{
     digest::FixedOutput,
     Hmac, Mac,
 };
-use russh_definitions::algorithms::{InvalidMacError, MacAlgorithm};
 use secstr::SecStr;
 
 macro_rules! impl_hmac_sha {

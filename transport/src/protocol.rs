@@ -1,11 +1,11 @@
 //! Contains logic to decide which packets are sent when.
 
-use rand::Rng;
-use russh_definitions::{
+use definitions::{
     algorithms::{AlgorithmCategory, AlgorithmDirection, AlgorithmRole, KeyExchangeData},
     consts::{MessageType, SSH_MSG_NEWKEYS, SSH_MSG_SERVICE_ACCEPT, SSH_MSG_SERVICE_REQUEST},
     parse, write, ConnectionRole, ParsedValue,
 };
+use rand::Rng;
 use std::borrow::Cow;
 
 use crate::{

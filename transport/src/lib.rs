@@ -8,8 +8,8 @@
 #![deny(missing_debug_implementations)]
 #![warn(unreachable_pub)]
 
+use definitions::algorithms::internal::CryptoRngCore;
 use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
-use russh_definitions::algorithms::internal::CryptoRngCore;
 use std::{borrow::Cow, fmt};
 
 use crate::{
@@ -20,10 +20,10 @@ use crate::{
     protocol::ProtocolHandler,
 };
 
-pub use algorithms::{AlgorithmList, ConnectionAlgorithms, ListPosition, Nameable};
+pub use crate::algorithms::{AlgorithmList, ConnectionAlgorithms, ListPosition, Nameable};
+pub use definitions::ConnectionRole;
 pub use input_handler::InputStream;
 pub use output_handler::OutputStream;
-pub use russh_definitions::ConnectionRole;
 pub use version::VersionInformation;
 
 #[macro_use]

@@ -1,6 +1,6 @@
 //! Allows for parsing of unencrypted packets.
 
-use russh_definitions::{parse, ParsedValue};
+use definitions::{parse, ParsedValue};
 
 use crate::errors::ParseError;
 

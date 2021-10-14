@@ -1,8 +1,8 @@
 //! Aids with customization of the padding lengths for outgoing packets.
 
+use definitions::algorithms::internal::CryptoRngCore;
 use rand::distributions::Distribution;
 use rand_distr::Gamma;
-use russh_definitions::algorithms::internal::CryptoRngCore;
 
 use crate::constants::MAX_EXTRA_PADDING_BLOCKS;
 

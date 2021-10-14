@@ -1,11 +1,11 @@
 //! Handles key exchange related protocol functions.
 
-use num_bigint::BigInt;
-use russh_definitions::{
+use definitions::{
     algorithms::{AlgorithmCategory, AlgorithmRole, KeyExchangeData, KeyExchangeResponse},
     consts::{MessageType, SSH_MSG_KEXINIT},
     ConnectionRole, ParsedValue,
 };
+use num_bigint::BigInt;
 use std::{
     borrow::Cow,
     io::{self, Write},
@@ -125,7 +125,7 @@ pub(in crate::protocol) struct KexinitPacket<'a> {
 }
 
 #[rustfmt::skip]
-russh_definitions::ssh_packet! {
+definitions::ssh_packet! {
     #[derive(Debug, Default)]
     struct RawKexinitPacket {
         byte         {SSH_MSG_KEXINIT}
@@ -147,7 +147,7 @@ russh_definitions::ssh_packet! {
 
 /// Parses a SSH_MSG_KEXINIT packet.
 pub(in crate::protocol) fn parse_kexinit(input: &[u8]) -> Result<KexinitPacket, ParseError> {
-    use russh_definitions::Parse as _;
+    use definitions::Parse as _;
     let ParsedValue { value: packet, .. } = RawKexinitPacket::parse(input)?;
 
     Ok(KexinitPacket {
@@ -171,7 +171,7 @@ pub(in crate::protocol) fn write_kexinit(
     packet: &KexinitPacket,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    use russh_definitions::Compose as _;
+    use definitions::Compose as _;
 
     // TODO: deal with languages
     RawKexinitPacket {

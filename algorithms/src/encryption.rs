@@ -1,6 +1,6 @@
 //! Provides the encryption algorithms used by the SSH transport layer.
 
-use russh_definitions::algorithms::{
+use definitions::algorithms::{
     internal, EncryptionAlgorithm, EncryptionContext, PlainEncryptionAlgorithm,
 };
 

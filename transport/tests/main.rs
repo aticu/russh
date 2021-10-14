@@ -106,19 +106,19 @@ async fn separate_encryption_mac_client_with_openssh() {
     test_client_against_openssh(|builder| {
         let mut algorithms = ConnectionAlgorithms::new();
         algorithms
-            .add_host_key_algorithm(russh_algorithms::host_key::Ed25519::new())
+            .add_host_key_algorithm(algorithms::host_key::Ed25519::new())
             .expect("host key algorithm could not be successfully added")
-            .add_key_exchange_algorithm(russh_algorithms::key_exchange::Curve25519Sha256::new())
+            .add_key_exchange_algorithm(algorithms::key_exchange::Curve25519Sha256::new())
             .expect("key exchange algorithm could not be successfully added")
-            .add_encryption_algorithm(russh_algorithms::encryption::None::new())
+            .add_encryption_algorithm(algorithms::encryption::None::new())
             .expect("encryption algorithm could not be successfully added")
-            .add_encryption_algorithm(russh_algorithms::encryption::Aes128Ctr::new())
+            .add_encryption_algorithm(algorithms::encryption::Aes128Ctr::new())
             .expect("encryption algorithm could not be successfully added")
-            .add_mac_algorithm(russh_algorithms::mac::None::new())
+            .add_mac_algorithm(algorithms::mac::None::new())
             .expect("mac algorithm could not be successfully added")
-            .add_mac_algorithm(russh_algorithms::mac::HmacSha2256::new())
+            .add_mac_algorithm(algorithms::mac::HmacSha2256::new())
             .expect("mac algorithm could not be successfully added")
-            .add_compression_algorithm(russh_algorithms::compression::None::new())
+            .add_compression_algorithm(algorithms::compression::None::new())
             .expect("compression algorithm could not be successfully added");
 
         builder.algorithms(algorithms)
@@ -132,19 +132,19 @@ async fn separate_encryption_mac_server_with_openssh() {
     test_server_against_openssh(|builder| {
         let mut algorithms = ConnectionAlgorithms::new();
         algorithms
-            .add_host_key_algorithm(russh_algorithms::host_key::Ed25519::new())
+            .add_host_key_algorithm(algorithms::host_key::Ed25519::new())
             .expect("host key algorithm could not be successfully added")
-            .add_key_exchange_algorithm(russh_algorithms::key_exchange::Curve25519Sha256::new())
+            .add_key_exchange_algorithm(algorithms::key_exchange::Curve25519Sha256::new())
             .expect("key exchange algorithm could not be successfully added")
-            .add_encryption_algorithm(russh_algorithms::encryption::None::new())
+            .add_encryption_algorithm(algorithms::encryption::None::new())
             .expect("encryption algorithm could not be successfully added")
-            .add_encryption_algorithm(russh_algorithms::encryption::Aes128Ctr::new())
+            .add_encryption_algorithm(algorithms::encryption::Aes128Ctr::new())
             .expect("encryption algorithm could not be successfully added")
-            .add_mac_algorithm(russh_algorithms::mac::None::new())
+            .add_mac_algorithm(algorithms::mac::None::new())
             .expect("mac algorithm could not be successfully added")
-            .add_mac_algorithm(russh_algorithms::mac::HmacSha2256::new())
+            .add_mac_algorithm(algorithms::mac::HmacSha2256::new())
             .expect("mac algorithm could not be successfully added")
-            .add_compression_algorithm(russh_algorithms::compression::None::new())
+            .add_compression_algorithm(algorithms::compression::None::new())
             .expect("compression algorithm could not be successfully added");
 
         builder
@@ -161,17 +161,17 @@ async fn combined_encryption_mac_client_with_openssh() {
     test_client_against_openssh(|builder| {
         let mut algorithms = ConnectionAlgorithms::new();
         algorithms
-            .add_host_key_algorithm(russh_algorithms::host_key::Ed25519::new())
+            .add_host_key_algorithm(algorithms::host_key::Ed25519::new())
             .expect("host key algorithm could not be successfully added")
-            .add_key_exchange_algorithm(russh_algorithms::key_exchange::Curve25519Sha256::new())
+            .add_key_exchange_algorithm(algorithms::key_exchange::Curve25519Sha256::new())
             .expect("key exchange algorithm could not be successfully added")
-            .add_encryption_algorithm(russh_algorithms::encryption::None::new())
+            .add_encryption_algorithm(algorithms::encryption::None::new())
             .expect("encryption algorithm could not be successfully added")
-            .add_encryption_algorithm(russh_algorithms::encryption::ChaCha20Poly1305::new())
+            .add_encryption_algorithm(algorithms::encryption::ChaCha20Poly1305::new())
             .expect("encryption algorithm could not be successfully added")
-            .add_mac_algorithm(russh_algorithms::mac::None::new())
+            .add_mac_algorithm(algorithms::mac::None::new())
             .expect("mac algorithm could not be successfully added")
-            .add_compression_algorithm(russh_algorithms::compression::None::new())
+            .add_compression_algorithm(algorithms::compression::None::new())
             .expect("compression algorithm could not be successfully added");
 
         builder.algorithms(algorithms)
@@ -185,17 +185,17 @@ async fn combined_encryption_mac_server_with_openssh() {
     test_server_against_openssh(|builder| {
         let mut algorithms = ConnectionAlgorithms::new();
         algorithms
-            .add_host_key_algorithm(russh_algorithms::host_key::Ed25519::new())
+            .add_host_key_algorithm(algorithms::host_key::Ed25519::new())
             .expect("host key algorithm could not be successfully added")
-            .add_key_exchange_algorithm(russh_algorithms::key_exchange::Curve25519Sha256::new())
+            .add_key_exchange_algorithm(algorithms::key_exchange::Curve25519Sha256::new())
             .expect("key exchange algorithm could not be successfully added")
-            .add_encryption_algorithm(russh_algorithms::encryption::None::new())
+            .add_encryption_algorithm(algorithms::encryption::None::new())
             .expect("encryption algorithm could not be successfully added")
-            .add_encryption_algorithm(russh_algorithms::encryption::ChaCha20Poly1305::new())
+            .add_encryption_algorithm(algorithms::encryption::ChaCha20Poly1305::new())
             .expect("encryption algorithm could not be successfully added")
-            .add_mac_algorithm(russh_algorithms::mac::None::new())
+            .add_mac_algorithm(algorithms::mac::None::new())
             .expect("mac algorithm could not be successfully added")
-            .add_compression_algorithm(russh_algorithms::compression::None::new())
+            .add_compression_algorithm(algorithms::compression::None::new())
             .expect("compression algorithm could not be successfully added");
 
         builder
