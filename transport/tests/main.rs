@@ -1,4 +1,4 @@
-use russh_transport::{Builder, ConnectionRole};
+use russh_transport::{Builder, ConnectionAlgorithms, ConnectionRole};
 
 mod openssh;
 
@@ -104,8 +104,8 @@ async fn default_server_with_openssh() {
 #[tokio::test]
 async fn separate_encryption_mac_client_with_openssh() {
     test_client_against_openssh(|builder| {
-        builder
-            .clear_algorithms()
+        let mut algorithms = ConnectionAlgorithms::new();
+        algorithms
             .add_host_key_algorithm(russh_algorithms::host_key::Ed25519::new())
             .expect("host key algorithm could not be successfully added")
             .add_key_exchange_algorithm(russh_algorithms::key_exchange::Curve25519Sha256::new())
@@ -119,7 +119,9 @@ async fn separate_encryption_mac_client_with_openssh() {
             .add_mac_algorithm(russh_algorithms::mac::HmacSha2256::new())
             .expect("mac algorithm could not be successfully added")
             .add_compression_algorithm(russh_algorithms::compression::None::new())
-            .expect("compression algorithm could not be successfully added")
+            .expect("compression algorithm could not be successfully added");
+
+        builder.algorithms(algorithms)
     })
     .await;
 }
@@ -128,8 +130,8 @@ async fn separate_encryption_mac_client_with_openssh() {
 #[tokio::test]
 async fn separate_encryption_mac_server_with_openssh() {
     test_server_against_openssh(|builder| {
-        builder
-            .clear_algorithms()
+        let mut algorithms = ConnectionAlgorithms::new();
+        algorithms
             .add_host_key_algorithm(russh_algorithms::host_key::Ed25519::new())
             .expect("host key algorithm could not be successfully added")
             .add_key_exchange_algorithm(russh_algorithms::key_exchange::Curve25519Sha256::new())
@@ -143,7 +145,10 @@ async fn separate_encryption_mac_server_with_openssh() {
             .add_mac_algorithm(russh_algorithms::mac::HmacSha2256::new())
             .expect("mac algorithm could not be successfully added")
             .add_compression_algorithm(russh_algorithms::compression::None::new())
-            .expect("compression algorithm could not be successfully added")
+            .expect("compression algorithm could not be successfully added");
+
+        builder
+            .algorithms(algorithms)
             .load_host_key("ssh-ed25519", &random_ed25519_host_key())
             .expect("host key could not be successfully loaded")
     })
@@ -154,8 +159,8 @@ async fn separate_encryption_mac_server_with_openssh() {
 #[tokio::test]
 async fn combined_encryption_mac_client_with_openssh() {
     test_client_against_openssh(|builder| {
-        builder
-            .clear_algorithms()
+        let mut algorithms = ConnectionAlgorithms::new();
+        algorithms
             .add_host_key_algorithm(russh_algorithms::host_key::Ed25519::new())
             .expect("host key algorithm could not be successfully added")
             .add_key_exchange_algorithm(russh_algorithms::key_exchange::Curve25519Sha256::new())
@@ -167,7 +172,9 @@ async fn combined_encryption_mac_client_with_openssh() {
             .add_mac_algorithm(russh_algorithms::mac::None::new())
             .expect("mac algorithm could not be successfully added")
             .add_compression_algorithm(russh_algorithms::compression::None::new())
-            .expect("compression algorithm could not be successfully added")
+            .expect("compression algorithm could not be successfully added");
+
+        builder.algorithms(algorithms)
     })
     .await;
 }
@@ -176,8 +183,8 @@ async fn combined_encryption_mac_client_with_openssh() {
 #[tokio::test]
 async fn combined_encryption_mac_server_with_openssh() {
     test_server_against_openssh(|builder| {
-        builder
-            .clear_algorithms()
+        let mut algorithms = ConnectionAlgorithms::new();
+        algorithms
             .add_host_key_algorithm(russh_algorithms::host_key::Ed25519::new())
             .expect("host key algorithm could not be successfully added")
             .add_key_exchange_algorithm(russh_algorithms::key_exchange::Curve25519Sha256::new())
@@ -189,7 +196,10 @@ async fn combined_encryption_mac_server_with_openssh() {
             .add_mac_algorithm(russh_algorithms::mac::None::new())
             .expect("mac algorithm could not be successfully added")
             .add_compression_algorithm(russh_algorithms::compression::None::new())
-            .expect("compression algorithm could not be successfully added")
+            .expect("compression algorithm could not be successfully added");
+
+        builder
+            .algorithms(algorithms)
             .load_host_key("ssh-ed25519", &random_ed25519_host_key())
             .expect("host key could not be successfully loaded")
     })

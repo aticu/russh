@@ -162,7 +162,7 @@ impl EncryptionAlgorithm for ChaCha20Poly1305 {
         let packet_sequence_number = context.packet_sequence_number();
 
         if context.processed_part().len() < LEN_SIZE {
-            self.decrypt_packet_length(&mut context.unprocessed_part(), packet_sequence_number);
+            self.decrypt_packet_length(context.unprocessed_part(), packet_sequence_number);
 
             bytes_decrypted += LEN_SIZE;
             context.mark_processed(LEN_SIZE);

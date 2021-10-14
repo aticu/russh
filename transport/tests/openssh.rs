@@ -25,9 +25,7 @@ impl Sshd {
         let sshd_path = quale::which("sshd").expect("could not find sshd binary in the PATH");
 
         // Set up a temporary folder to hold the ssh key
-        let temp_dir = mktemp::Temp::new_dir()
-            .ok()
-            .expect("could not create a temporary directory");
+        let temp_dir = mktemp::Temp::new_dir().expect("could not create a temporary directory");
         let host_key_path = temp_dir.as_path().join("ssh_host_ed25519_key");
 
         // Generate a new random ssh key
@@ -110,7 +108,7 @@ impl Sshd {
         // kill the process if it's still running
         self.process.kill().ok();
 
-        String::from_utf8(std::mem::replace(&mut self.output, Vec::new())).ok()
+        String::from_utf8(std::mem::take(&mut self.output)).ok()
     }
 }
 
@@ -198,6 +196,6 @@ impl Ssh {
         // kill the process if it's still running
         self.process.kill().ok();
 
-        String::from_utf8(std::mem::replace(&mut self.output, Vec::new())).ok()
+        String::from_utf8(std::mem::take(&mut self.output)).ok()
     }
 }

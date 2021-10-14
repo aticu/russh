@@ -1,8 +1,8 @@
 //! Contains built-in algorithm implementations.
 
 use crate::algorithms::{
-    AddIn, AlgorithmList, CompressionAlgorithmEntry, EncryptionAlgorithmEntry,
-    HostKeyAlgorithmEntry, KeyExchangeAlgorithmEntry, MacAlgorithmEntry,
+    AlgorithmList, CompressionAlgorithmEntry, EncryptionAlgorithmEntry, HostKeyAlgorithmEntry,
+    KeyExchangeAlgorithmEntry, ListPosition, MacAlgorithmEntry,
 };
 
 /// Returns a list of all builtin key exchange algorithms.
@@ -11,7 +11,7 @@ pub(crate) fn key_exchange_algorithms() -> AlgorithmList<KeyExchangeAlgorithmEnt
 
     #[cfg(feature = "default-algorithms")]
     russh_algorithms::key_exchange::add_algorithms(|alg| {
-        list.add_raw(alg, AddIn::Back).unwrap();
+        list.add_raw(alg, ListPosition::Back).unwrap();
     });
 
     list
@@ -23,7 +23,7 @@ pub(crate) fn host_key_algorithms() -> AlgorithmList<HostKeyAlgorithmEntry> {
 
     #[cfg(feature = "default-algorithms")]
     russh_algorithms::host_key::add_algorithms(|alg| {
-        list.add_raw(alg, AddIn::Back).unwrap();
+        list.add_raw(alg, ListPosition::Back).unwrap();
     });
 
     list
@@ -35,7 +35,7 @@ pub(crate) fn encryption_algorithms() -> AlgorithmList<EncryptionAlgorithmEntry>
 
     #[cfg(feature = "default-algorithms")]
     russh_algorithms::encryption::add_algorithms(|alg| {
-        list.add_raw(alg, AddIn::Back).unwrap();
+        list.add_raw(alg, ListPosition::Back).unwrap();
     });
 
     list
@@ -47,7 +47,7 @@ pub(crate) fn mac_algorithms() -> AlgorithmList<MacAlgorithmEntry> {
 
     #[cfg(feature = "default-algorithms")]
     russh_algorithms::mac::add_algorithms(|alg| {
-        list.add_raw(alg, AddIn::Back).unwrap();
+        list.add_raw(alg, ListPosition::Back).unwrap();
     });
 
     list
@@ -59,7 +59,7 @@ pub(crate) fn compression_algorithms() -> AlgorithmList<CompressionAlgorithmEntr
 
     #[cfg(feature = "default-algorithms")]
     russh_algorithms::compression::add_algorithms(|alg| {
-        list.add_raw(alg, AddIn::Back).unwrap();
+        list.add_raw(alg, ListPosition::Back).unwrap();
     });
 
     list

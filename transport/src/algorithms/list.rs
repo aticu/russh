@@ -8,7 +8,7 @@ use crate::errors::InvalidNameError;
 /// A trait to abstract over algorithms being named.
 ///
 /// This is mainly used to identify and find algorithms by their name.
-pub(crate) trait Nameable {
+pub trait Nameable {
     /// Returns the name of `self`.
     ///
     /// The assigned name of a value must remain the same for the algorithm list to work correctly.
@@ -47,7 +47,7 @@ impl Nameable for super::CompressionAlgorithmEntry {
 
 /// Specifies where to add an algorithm into the list.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub(crate) enum AddIn {
+pub enum ListPosition {
     /// Adds an algorithm to the front of the list, giving it priority over existing algorithms.
     Front,
     /// Adds an algorithm to the back of the list, giving existing algorithms priority over it.
@@ -60,16 +60,22 @@ pub(crate) enum AddIn {
 
 /// A list holding all algorithms of the same type and storing which one is currently active.
 #[derive(Debug)]
-pub(crate) struct AlgorithmList<Entry: Nameable> {
+pub struct AlgorithmList<Entry: Nameable> {
     /// The list of algorithm entries.
     list: Vec<Entry>,
     /// The index of the currently chosen algorithm.
     current: Option<usize>,
 }
 
+impl<Entry: Nameable> Default for AlgorithmList<Entry> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<Entry: Nameable> AlgorithmList<Entry> {
     /// Creates a new empty algorithm list.
-    pub(crate) fn new() -> AlgorithmList<Entry> {
+    pub fn new() -> AlgorithmList<Entry> {
         AlgorithmList {
             list: Vec::new(),
             current: None,
@@ -78,31 +84,31 @@ impl<Entry: Nameable> AlgorithmList<Entry> {
 
     /// Adds an entry describing an algorithm into the list.
     ///
-    /// Read the documentation of [`AddIn`] to learn more about where the entry can be added into
+    /// Read the documentation of [`ListPosition`] to learn more about where the entry can be added into
     /// the list.
-    pub(crate) fn add_raw(
+    pub fn add_raw(
         &mut self,
         entry: Entry,
-        position: AddIn,
+        position: ListPosition,
     ) -> Result<&mut Self, InvalidNameError> {
         validate_algorithm_name(entry.name())?;
 
         match position {
-            AddIn::Back | AddIn::Front => {
+            ListPosition::Back | ListPosition::Front => {
                 if let Some(idx) = self.find_index(entry.name()) {
                     self.list.remove(idx);
                 }
 
                 self.list.insert(
                     match position {
-                        AddIn::Back => self.list.len(),
-                        AddIn::Front => 0,
+                        ListPosition::Back => self.list.len(),
+                        ListPosition::Front => 0,
                         _ => unreachable!(),
                     },
                     entry,
                 );
             }
-            AddIn::CurrentPosition => {
+            ListPosition::CurrentPosition => {
                 if let Some(idx) = self.find_index(entry.name()) {
                     self.list[idx] = entry;
                 }
@@ -118,27 +124,27 @@ impl<Entry: Nameable> AlgorithmList<Entry> {
     ///
     /// If another algorithm with the same name is already present in the list, it is removed prior
     /// to adding the new algorithm.
-    pub(crate) fn add<Alg: Into<Entry>>(
+    pub fn add<Alg: Into<Entry>>(
         &mut self,
         new_alg: Alg,
-        position: AddIn,
+        position: ListPosition,
     ) -> Result<&mut Self, InvalidNameError> {
         self.add_raw(new_alg.into(), position)
     }
 
     /// Returns `true` if and only if the list doesn't contain any items.
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.list.is_empty()
     }
 
     /// Clears all algorithms from the list.
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.list.clear();
         self.current = None;
     }
 
     /// Returns `true` if and only if an algorithm named `name` is contained in the list.
-    pub(crate) fn contains_algorithm(&self, name: &str) -> bool {
+    pub fn contains_algorithm(&self, name: &str) -> bool {
         self.find_index(name).is_some()
     }
 
@@ -148,14 +154,14 @@ impl<Entry: Nameable> AlgorithmList<Entry> {
     }
 
     /// Chooses the algorithm with the given name.
-    pub(crate) fn choose(&mut self, name: &str) {
+    pub fn choose(&mut self, name: &str) {
         if let Some(idx) = self.find_index(name) {
             self.current = Some(idx);
         }
     }
 
     /// Returns a reference to the algorithm named `name`, if it exists in the list.
-    pub(crate) fn algorithm(&self, name: &str) -> Option<&Entry> {
+    pub fn algorithm(&self, name: &str) -> Option<&Entry> {
         if let Some(idx) = self.find_index(name) {
             Some(&self.list[idx])
         } else {
@@ -164,7 +170,7 @@ impl<Entry: Nameable> AlgorithmList<Entry> {
     }
 
     /// Returns a mutable reference to the algorithm named `name`, if it exists in the list.
-    pub(crate) fn algorithm_mut(&mut self, name: &str) -> Option<&mut Entry> {
+    pub fn algorithm_mut(&mut self, name: &str) -> Option<&mut Entry> {
         if let Some(idx) = self.find_index(name) {
             Some(&mut self.list[idx])
         } else {
@@ -180,7 +186,7 @@ impl<Entry: Nameable> AlgorithmList<Entry> {
     /// # Panics
     /// This function panics if no algorithm was previously chosen and no algorithm named "none" is
     /// present in the list.
-    pub(crate) fn current(&mut self) -> &mut Entry {
+    pub fn current(&mut self) -> &mut Entry {
         if let Some(idx) = self.current.or_else(|| {
             self.choose("none");
             self.current
@@ -192,7 +198,7 @@ impl<Entry: Nameable> AlgorithmList<Entry> {
     }
 
     /// Creates a list of all algorithm names.
-    pub(crate) fn to_name_list(&self, include_none: bool) -> Vec<Cow<'static, str>> {
+    pub fn to_name_list(&self, include_none: bool) -> Vec<Cow<'static, str>> {
         self.list
             .iter()
             .map(|alg| Cow::Borrowed(alg.name()))

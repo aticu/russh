@@ -11,8 +11,10 @@ pub(crate) use russh_definitions::algorithms::{
 };
 use std::borrow::Cow;
 
-use crate::errors::LoadHostKeyError;
-pub(crate) use list::{AddIn, AlgorithmList};
+use crate::errors::{InvalidNameError, LoadHostKeyError};
+// TODO: Remove this allow once this issue is fixed: https://github.com/rust-lang/rust/issues/64762
+#[allow(unreachable_pub)]
+pub use list::{AlgorithmList, ListPosition, Nameable};
 
 mod key_expansion;
 mod list;
@@ -22,13 +24,13 @@ pub(crate) mod helpers;
 
 /// The lists of available packet algorithms in one communication direction.
 #[derive(Debug)]
-pub(crate) struct OneWayPacketAlgorithms {
+pub struct OneWayPacketAlgorithms {
     /// The available encryption algorithms.
-    pub(crate) encryption: AlgorithmList<EncryptionAlgorithmEntry>,
+    pub encryption: AlgorithmList<EncryptionAlgorithmEntry>,
     /// The available MAC algorithms.
-    pub(crate) mac: AlgorithmList<MacAlgorithmEntry>,
+    pub mac: AlgorithmList<MacAlgorithmEntry>,
     /// The available compression algorithms.
-    pub(crate) compression: AlgorithmList<CompressionAlgorithmEntry>,
+    pub compression: AlgorithmList<CompressionAlgorithmEntry>,
 }
 
 impl Default for OneWayPacketAlgorithms {
@@ -42,6 +44,16 @@ impl Default for OneWayPacketAlgorithms {
 }
 
 impl OneWayPacketAlgorithms {
+    /// Creates a new one way packet algorithms struct containing no algorithms.
+    pub fn new() -> OneWayPacketAlgorithms {
+        OneWayPacketAlgorithms {
+            encryption: AlgorithmList::new(),
+            mac: AlgorithmList::new(),
+            compression: AlgorithmList::new(),
+        }
+    }
+
+    /// Returns the currently chosen algorithms.
     pub(crate) fn current(&mut self) -> PacketAlgorithms {
         let encryption_algorithm = self.encryption.current();
         let mac_included = encryption_algorithm.computes_mac();
@@ -60,15 +72,15 @@ impl OneWayPacketAlgorithms {
 
 /// Contains the algorithms available for communication.
 #[derive(Debug)]
-pub(crate) struct ConnectionAlgorithms {
+pub struct ConnectionAlgorithms {
     /// The available key exchange algorithms.
-    pub(crate) kex: AlgorithmList<KeyExchangeAlgorithmEntry>,
+    pub kex: AlgorithmList<KeyExchangeAlgorithmEntry>,
     /// The available host key algorithms.
-    pub(crate) host_key: AlgorithmList<HostKeyAlgorithmEntry>,
+    pub host_key: AlgorithmList<HostKeyAlgorithmEntry>,
     /// The algorithms for client to server communication.
-    pub(crate) c2s: OneWayPacketAlgorithms,
+    pub c2s: OneWayPacketAlgorithms,
     /// The algorithms for server to client communication.
-    pub(crate) s2c: OneWayPacketAlgorithms,
+    pub s2c: OneWayPacketAlgorithms,
 }
 
 impl Default for ConnectionAlgorithms {
@@ -83,6 +95,79 @@ impl Default for ConnectionAlgorithms {
 }
 
 impl ConnectionAlgorithms {
+    /// Creates a new connection algorithms struct containing no algorithms.
+    pub fn new() -> ConnectionAlgorithms {
+        ConnectionAlgorithms {
+            kex: AlgorithmList::new(),
+            host_key: AlgorithmList::new(),
+            c2s: OneWayPacketAlgorithms::new(),
+            s2c: OneWayPacketAlgorithms::new(),
+        }
+    }
+
+    /// Adds a new key exchange algorithm.
+    pub fn add_key_exchange_algorithm<
+        A: russh_definitions::algorithms::KeyExchangeAlgorithm + 'static,
+    >(
+        &mut self,
+        algorithm: A,
+    ) -> Result<&mut Self, InvalidNameError> {
+        self.kex.add(algorithm, ListPosition::Front)?;
+
+        Ok(self)
+    }
+
+    /// Adds a new host key algorithm.
+    pub fn add_host_key_algorithm<A: russh_definitions::algorithms::HostKeyAlgorithm + 'static>(
+        &mut self,
+        algorithm: A,
+    ) -> Result<&mut Self, InvalidNameError> {
+        self.host_key.add(algorithm, ListPosition::Front)?;
+
+        Ok(self)
+    }
+
+    /// Adds a new encryption algorithm.
+    pub fn add_encryption_algorithm<
+        A: russh_definitions::algorithms::EncryptionAlgorithm + Clone + 'static,
+    >(
+        &mut self,
+        algorithm: A,
+    ) -> Result<&mut Self, InvalidNameError> {
+        self.c2s
+            .encryption
+            .add(algorithm.clone(), ListPosition::Front)?;
+        self.s2c.encryption.add(algorithm, ListPosition::Front)?;
+
+        Ok(self)
+    }
+
+    /// Adds a new MAC algorithm.
+    pub fn add_mac_algorithm<A: russh_definitions::algorithms::MacAlgorithm + Clone + 'static>(
+        &mut self,
+        algorithm: A,
+    ) -> Result<&mut Self, InvalidNameError> {
+        self.c2s.mac.add(algorithm.clone(), ListPosition::Front)?;
+        self.s2c.mac.add(algorithm, ListPosition::Front)?;
+
+        Ok(self)
+    }
+
+    /// Adds a new compression algorithm.
+    pub fn add_compression_algorithm<
+        A: russh_definitions::algorithms::CompressionAlgorithm + Clone + 'static,
+    >(
+        &mut self,
+        algorithm: A,
+    ) -> Result<&mut Self, InvalidNameError> {
+        self.c2s
+            .compression
+            .add(algorithm.clone(), ListPosition::Front)?;
+        self.s2c.compression.add(algorithm, ListPosition::Front)?;
+
+        Ok(self)
+    }
+
     /// Returns the name of the first empty algorithm category.
     pub(crate) fn empty_algorithm_role(&self) -> Option<AlgorithmRole> {
         if self.kex.is_empty() {
@@ -162,7 +247,7 @@ impl ConnectionAlgorithms {
     }
 
     /// Clears all algorithms from the available algorithms.
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.kex.clear();
         self.host_key.clear();
         self.c2s.encryption.clear();
