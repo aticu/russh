@@ -26,8 +26,5 @@ pub(crate) const MIN_PACKET_LEN_ALIGN: usize = 8;
 /// bytes equal to the cipher block size or 8, whichever is higher.
 pub const MAX_EXTRA_PADDING_BLOCKS: usize = MAX_PADDING_SIZE / MIN_PACKET_LEN_ALIGN;
 
-/// The default size for data reads.
-pub(crate) const READ_SIZE: usize = 0x1000;
-
 /// The protocol version supported by this library.
 pub const PROTOCOL_VERSION: &str = "2.0";

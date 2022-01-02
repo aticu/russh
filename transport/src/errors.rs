@@ -20,6 +20,9 @@ pub enum CommunicationError {
     /// There was an IO error while sending or receiving a packet.
     #[error("an io error occured: {0}")]
     Io(#[from] io::Error),
+    /// There was an error parsing an incoming packet.
+    #[error("an incoming packet was invalid: {0}")]
+    InvalidIncomingPacket(Box<dyn Error>),
     /// A received packet had an invalid format.
     #[error("a packet had an invalid format")]
     InvalidFormat,
@@ -62,6 +65,12 @@ pub enum InitializationError {
     KeyExchange(KeyExchangeProcedureError),
 }
 
+impl From<IncomingPacketError> for InitializationError {
+    fn from(err: IncomingPacketError) -> Self {
+        InitializationError::Communication(CommunicationError::InvalidIncomingPacket(Box::new(err)))
+    }
+}
+
 /// There was an error during the key exchange procedure.
 #[derive(Debug, thiserror::Error)]
 pub enum KeyExchangeProcedureError {
@@ -80,6 +89,14 @@ pub enum KeyExchangeProcedureError {
     /// No `SSH_MSG_NEWKEYS` was received, when it was required.
     #[error("the other party did not acknowledge the key exchange")]
     NoNewkeysPacket,
+}
+
+impl From<IncomingPacketError> for KeyExchangeProcedureError {
+    fn from(err: IncomingPacketError) -> Self {
+        KeyExchangeProcedureError::Communication(CommunicationError::InvalidIncomingPacket(
+            Box::new(err),
+        ))
+    }
 }
 
 /// There was an error while loading a host key.
@@ -121,6 +138,12 @@ pub enum ServiceRequestError {
     /// A service other than the requested one was accepted.
     #[error("a service other than the requested one was accepted: {0:?}")]
     WrongServiceAccepted(Vec<u8>),
+}
+
+impl From<IncomingPacketError> for ServiceRequestError {
+    fn from(err: IncomingPacketError) -> Self {
+        ServiceRequestError::Communication(CommunicationError::InvalidIncomingPacket(Box::new(err)))
+    }
 }
 
 /// The software version was illegal according to the specification.
@@ -169,13 +192,19 @@ pub enum InvalidNameError {
     InvalidDomain,
 }
 
-/// Describes errors that can occur while parsing a received packet.
-#[derive(Debug, PartialEq, Eq, Clone, thiserror::Error)]
-pub enum ParseIncomingPacketError {
+/// Describes the reasons why an incoming packet could be invalid.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum IncomingPacketError {
     /// The packet could not be parsed.
-    #[error("the packet could not be parsed")]
-    ParseError(#[from] ParseError),
+    #[error("the packet doesn't have a valid format")]
+    Format,
+    /// The packet had invalid padding.
+    #[error("the packet has an invalid amount of padding")]
+    Padding,
     /// The packet had an invalid MAC.
     #[error("the packet had an invalid MAC: {0}")]
-    InvalidMac(#[from] InvalidMacError),
+    Mac(InvalidMacError),
+    /// The packet could not be decompressed.
+    #[error("the packet could not be decompressed: {0}")]
+    Compression(Box<dyn Error>),
 }

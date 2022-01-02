@@ -14,7 +14,7 @@ use std::{
 use crate::{
     algorithms::{AlgorithmNameList, ConnectionAlgorithms},
     errors::{CommunicationError, KeyExchangeProcedureError, ParseError},
-    input_handler::{InputHandler, InputStream},
+    input::{InputBuffer, InputStream},
     output_handler::{OutputHandler, OutputStream},
     CryptoRngCore,
 };
@@ -40,7 +40,7 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
     connection_role: ConnectionRole,
     connection_algorithms: &mut ConnectionAlgorithms,
     rng: &mut dyn CryptoRngCore,
-    (input_handler, input): (&mut InputHandler, &mut Input),
+    (input_buffer, input): (&mut InputBuffer, &mut Input),
     (output_handler, output): (&mut OutputHandler, &mut Output),
 ) -> Result<KeyExchangeResult, KeyExchangeProcedureError> {
     let kex_algorithm = connection_algorithms.kex.current();
@@ -62,11 +62,11 @@ pub(in crate::protocol) async fn algorithm_specific_exchange<
 
     let (host_key, shared_secret, exchange_hash, message) = loop {
         let answer = loop {
-            match input_handler
+            match input_buffer
                 .read_packet(incoming_algorithms!(connection_algorithms, connection_role))?
             {
                 Some(answer) => break answer,
-                None => input_handler.read_more_data(input).await?,
+                None => input_buffer.read_more_data(input).await?,
             };
         };
 

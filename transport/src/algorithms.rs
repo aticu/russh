@@ -486,3 +486,17 @@ pub(crate) struct PacketAlgorithms<'a> {
     /// The compression algorithm used for the packets.
     pub(crate) compression: &'a mut CompressionAlgorithmEntry,
 }
+
+impl PacketAlgorithms<'_> {
+    /// Returns the length of the MACs when using these packet algorithms.
+    pub(crate) fn mac_len(&self) -> usize {
+        self.mac
+            .as_ref()
+            .map(|alg| alg.mac_size)
+            .unwrap_or_else(|| {
+                self.encryption.mac_size.expect(
+                    "encryption algorithm is authenticated when no MAC algorithm is present",
+                )
+            })
+    }
+}

@@ -13,7 +13,7 @@ use crate::{
     errors::{
         CommunicationError, InitializationError, KeyExchangeProcedureError, ServiceRequestError,
     },
-    input_handler::{InputHandler, InputStream},
+    input::{InputBuffer, InputStream},
     output_handler::{OutputHandler, OutputStream},
     version::VersionInformation,
     CryptoRngCore,
@@ -24,7 +24,7 @@ mod kex;
 /// Handles all protocol interactions at the transport layer level.
 pub(crate) struct ProtocolHandler<Input: InputStream, Output: OutputStream> {
     /// The handler for the input to the transport layer.
-    input_handler: InputHandler,
+    input_buffer: InputBuffer,
     /// The source of the input.
     input: Input,
     /// The handler for the output of the transport layer.
@@ -77,12 +77,16 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
     /// Receives the next packet that will be sent to the user.
     pub(crate) async fn next_user_packet(&mut self) -> Result<Vec<u8>, CommunicationError> {
         let packet = loop {
-            match self.input_handler.read_packet(incoming_algorithms!(
-                self.connection_algorithms,
-                self.connection_role
-            ))? {
+            match self
+                .input_buffer
+                .read_packet(incoming_algorithms!(
+                    self.connection_algorithms,
+                    self.connection_role
+                ))
+                .map_err(|err| CommunicationError::InvalidIncomingPacket(Box::new(err)))?
+            {
                 Some(packet) => break packet.to_vec(),
-                None => self.input_handler.read_more_data(&mut self.input).await?,
+                None => self.input_buffer.read_more_data(&mut self.input).await?,
             };
         };
 
@@ -112,7 +116,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
 
     /// Initializes the connection up until the first key exchange is performed.
     pub(crate) async fn new(
-        (mut input_handler, mut input): (InputHandler, Input),
+        (mut input_buffer, mut input): (InputBuffer, Input),
         (mut output_handler, mut output): (OutputHandler, Output),
         rng: Box<dyn CryptoRngCore>,
         connection_role: ConnectionRole,
@@ -128,9 +132,9 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             .map_err(|err| InitializationError::Communication(CommunicationError::Io(err)))?;
 
         let (other_version_info, identification_string) = loop {
-            match input_handler.initialize()? {
+            match input_buffer.parse_initialization()? {
                 Some(result) => break result,
-                None => input_handler.read_more_data(&mut input).await?,
+                None => input_buffer.read_more_data(&mut input).await?,
             };
         };
         if other_version_info.protocol_version() != "2.0" {
@@ -143,7 +147,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             AlgorithmNameList::from_available(&connection_algorithms, allow_none_algorithms);
 
         let mut handler = ProtocolHandler {
-            input_handler,
+            input_buffer,
             input,
             output_handler,
             output,
@@ -176,12 +180,12 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
         let local_kexinit = self.send_kexinit_packet().await?;
 
         let remote_kexinit = loop {
-            match self.input_handler.read_packet(incoming_algorithms!(
+            match self.input_buffer.read_packet(incoming_algorithms!(
                 self.connection_algorithms,
                 self.connection_role
             ))? {
                 Some(remote_kexinit) => break remote_kexinit.to_vec(),
-                None => self.input_handler.read_more_data(&mut self.input).await?,
+                None => self.input_buffer.read_more_data(&mut self.input).await?,
             };
         };
 
@@ -236,7 +240,7 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
                 self.connection_role,
                 &mut self.connection_algorithms,
                 &mut self.rng,
-                (&mut self.input_handler, &mut self.input),
+                (&mut self.input_buffer, &mut self.input),
                 (&mut self.output_handler, &mut self.output),
             )
             .await;
@@ -263,12 +267,12 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             .map_err(|err| KeyExchangeProcedureError::Communication(CommunicationError::Io(err)))?;
 
         let answer = loop {
-            match self.input_handler.read_packet(incoming_algorithms!(
+            match self.input_buffer.read_packet(incoming_algorithms!(
                 self.connection_algorithms,
                 self.connection_role
             ))? {
                 Some(answer) => break answer,
-                None => self.input_handler.read_more_data(&mut self.input).await?,
+                None => self.input_buffer.read_more_data(&mut self.input).await?,
             };
         };
 
@@ -345,12 +349,12 @@ impl<Input: InputStream, Output: OutputStream> ProtocolHandler<Input, Output> {
             .map_err(|e| ServiceRequestError::Communication(CommunicationError::Io(e)))?;
 
         let answer = loop {
-            match self.input_handler.read_packet(incoming_algorithms!(
+            match self.input_buffer.read_packet(incoming_algorithms!(
                 self.connection_algorithms,
                 self.connection_role
             ))? {
                 Some(answer) => break answer,
-                None => self.input_handler.read_more_data(&mut self.input).await?,
+                None => self.input_buffer.read_more_data(&mut self.input).await?,
             };
         };
 

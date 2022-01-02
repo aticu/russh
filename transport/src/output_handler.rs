@@ -101,7 +101,7 @@ mod tests {
     use super::*;
     use crate::{
         algorithms::ConnectionAlgorithms,
-        input_handler::InputHandler,
+        input::InputBuffer,
         test_helpers::{FakeNetworkInput, FakeNetworkOutput},
         ConnectionRole,
     };
@@ -183,17 +183,17 @@ mod tests {
         let written_bytes = fake_output.written().len();
         let mut fake_input = FakeNetworkInput::new(fake_output.written().to_owned(), written_bytes);
 
-        let mut input_handler = InputHandler::new();
+        let mut input_buffer = InputBuffer::new();
 
         let mut connection_algorithms = ConnectionAlgorithms::default();
 
         futures::executor::block_on(async {
             assert_eq!(
-                input_handler.read_more_data(&mut fake_input).await.unwrap(),
+                input_buffer.read_more_data(&mut fake_input).await.unwrap(),
                 written_bytes
             );
             assert_eq!(
-                input_handler.initialize().unwrap().unwrap(),
+                input_buffer.parse_initialization().unwrap().unwrap(),
                 (
                     VersionInformation::new("test").unwrap(),
                     b"SSH-2.0-test".to_vec()
@@ -201,7 +201,7 @@ mod tests {
             );
 
             assert_eq!(
-                input_handler
+                input_buffer
                     .read_packet(incoming_algorithms!(
                         connection_algorithms,
                         ConnectionRole::Server
@@ -212,7 +212,7 @@ mod tests {
             );
 
             assert!(matches!(
-                input_handler.read_packet(incoming_algorithms!(
+                input_buffer.read_packet(incoming_algorithms!(
                     connection_algorithms,
                     ConnectionRole::Server
                 )),

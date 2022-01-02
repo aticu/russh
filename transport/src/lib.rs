@@ -14,7 +14,7 @@ use std::fmt;
 
 use crate::{
     errors::{BuildError, CommunicationError, LoadHostKeyError, ServiceRequestError},
-    input_handler::InputHandler,
+    input::InputBuffer,
     output_handler::OutputHandler,
     padding_length::PaddingLengthDistribution,
     protocol::ProtocolHandler,
@@ -22,15 +22,14 @@ use crate::{
 
 pub use crate::algorithms::{AlgorithmList, ConnectionAlgorithms, ListPosition, Nameable};
 pub use definitions::ConnectionRole;
-pub use input_handler::InputStream;
+pub use input::InputStream;
 pub use output_handler::OutputStream;
 pub use version::VersionInformation;
 
 #[macro_use]
 mod algorithms;
-mod input_handler;
+mod input;
 mod output_handler;
-mod parser;
 mod protocol;
 #[cfg(test)]
 mod test_helpers;
@@ -225,7 +224,7 @@ impl<Input: InputStream, Output: OutputStream> Builder<Input, Output> {
         }
 
         ProtocolHandler::new(
-            (InputHandler::new(), self.input),
+            (InputBuffer::new(), self.input),
             (
                 OutputHandler::new(self.padding_length_distribution),
                 self.output,
