@@ -34,9 +34,9 @@ ssh-ed25519 = ["ed25519-dalek"]
 
 # Encryption
 chacha20poly1305_at_openssh_com = ["chacha20", "poly1305", "zeroize", "static_assertions"]
-aes128-ctr = ["aes-ctr", "zeroize", "static_assertions"]
-aes192-ctr = ["aes-ctr", "zeroize", "static_assertions"]
-aes256-ctr = ["aes-ctr", "zeroize", "static_assertions"]
+aes128-ctr = ["aes", "ctr", "static_assertions"]
+aes192-ctr = ["aes", "ctr", "static_assertions"]
+aes256-ctr = ["aes", "ctr", "static_assertions"]
 
 # MAC
 hmac-sha1 = ["hmac", "sha-1", "secstr"]
@@ -63,7 +63,8 @@ ed25519-dalek = { version = "1.0", optional = true }
 # Encryption
 chacha20 = { version = "0.8", features = ["legacy"], optional = true }
 poly1305 = { version = "0.7", optional = true }
-aes-ctr = { version = "0.3", optional = true }
+ctr = { version = "0.9.1", features = ["zeroize"], optional = true }
+aes = { version = "0.8.1", features = ["zeroize"], optional = true }
 
 # MAC
 hmac = { version = "0.7", optional = true }
